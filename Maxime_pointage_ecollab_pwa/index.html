@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#141008">
+<title>Pointage — Charles Murgat</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+
+  :root {
+    --cream:   #f5f0e8;
+    --cream2:  #ede7da;
+    --white:   #ffffff;
+    --gold:    #7a5020;
+    --gold-lt: #9a6830;
+    --dark:    #141008;
+    --mid:     #3a3028;
+    --light:   #5a5048;
+    --border:  #c8baa8;
+    --green:   #3d6e3d;
+    --red:     #8a2f2f;
+    --serif:   'Cormorant Garamond', Georgia, serif;
+    --sans:    'Jost', sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  body {
+    background: var(--cream);
+    color: var(--dark);
+    font-family: var(--sans);
+    font-weight: 300;
+    min-height: 100vh;
+    max-width: 420px;
+    margin: 0 auto;
+    padding-bottom: 60px;
+  }
+
+  /* --- HEADER --- */
+  .header {
+    padding: 80px 24px 20px;
+    text-align: center;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+  .header-logo-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .header-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--mid);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .header-sub {
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-top: 5px;
+  }
+  .settings-btn {
+    position: fixed;
+    top: 16px; right: 16px;
+    z-index: 300;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--light);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    transition: all .2s;
+  }
+  .settings-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .sync-btn {
+    position: fixed;
+    top: 16px; right: 62px;
+    z-index: 300;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--light);
+    cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    font-size: 15px;
+    transition: all .2s;
+  }
+  .sync-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .sync-btn.syncing svg { animation: spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  /* --- DATE SELECTOR --- */
+  .date-section {
+    padding: 0 24px 20px;
+  }
+  .date-label {
+    font-size: 12px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 8px;
+  }
+  .date-select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--white);
+    font-family: var(--serif);
+    font-size: 20px;
+    color: var(--dark);
+    outline: none;
+    cursor: pointer;
+    transition: border-color .2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a5048' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+  }
+  .date-select:focus { border-color: var(--gold); }
+
+  /* --- SECTION TITRE --- */
+  .section-head {
+    padding: 0 24px 12px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--dark);
+    letter-spacing: .5px;
+  }
+  .section-hint {
+    font-size: 13px;
+    color: var(--light);
+    letter-spacing: 1px;
+  }
+
+  /* --- PLAGES --- */
+  .plages-wrap { padding: 0 24px; margin-bottom: 8px; }
+  .plage-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    transition: border-color .2s;
+  }
+  .plage-card:focus-within { border-color: var(--gold-lt); }
+  .plage-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .plage-label {
+    font-size: 12px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--light);
+  }
+  .plage-del-btn {
+    background: none;
+    border: none;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    padding: 2px 6px;
+    transition: color .2s;
+  }
+  .plage-del-btn:hover { color: var(--red); }
+
+  .time-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .time-row:last-child { margin-bottom: 0; }
+  .time-row-label {
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--light);
+    width: 38px;
+    flex-shrink: 0;
+  }
+  .time-select {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--cream);
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--dark);
+    outline: none;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23c8baa8' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+  .time-select:focus { border-color: var(--gold); background: var(--white); }
+
+  .add-plage-btn {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    color: var(--light);
+    font-size: 14px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: all .2s;
+    margin-bottom: 28px;
+  }
+  .add-plage-btn:hover { border-color: var(--gold-lt); color: var(--gold); }
+
+  /* --- RESUME --- */
+  .resume-section {
+    padding: 0 24px;
+    margin-bottom: 24px;
+  }
+  .resume-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .resume-label {
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 4px;
+  }
+  .resume-value {
+    font-family: var(--serif);
+    font-size: 28px;
+    color: var(--dark);
+    letter-spacing: 1px;
+  }
+  .resume-detail {
+    font-size: 13px;
+    color: var(--light);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  /* --- HORLOGE & POINTAGE --- */
+  .time-section {
+    text-align: center;
+    padding: 0 24px 28px;
+  }
+  .time-display {
+    font-family: var(--serif);
+    font-size: 58px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: var(--dark);
+    line-height: 1;
+  }
+  .time-colon { color: var(--gold); }
+  .status-band {
+    margin: 0 24px 28px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all .3s;
+  }
+  .status-band.active {
+    background: #f0f5f0;
+    border-color: #b8d0b8;
+  }
+  .status-indicator {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+    transition: all .3s;
+  }
+  .status-band.active .status-indicator {
+    background: var(--green);
+    box-shadow: 0 0 0 3px rgba(90,138,90,0.15);
+    animation: breathe 2.5s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100% { box-shadow: 0 0 0 3px rgba(90,138,90,0.15); }
+    50%     { box-shadow: 0 0 0 6px rgba(90,138,90,0.08); }
+  }
+  .status-label {
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--light);
+  }
+  .status-value {
+    font-family: var(--serif);
+    font-size: 19px;
+    color: var(--dark);
+    margin-top: 1px;
+  }
+  .status-band.active .status-value { color: var(--green); }
+  .timer-val {
+    margin-left: auto;
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--gold);
+    display: none;
+    letter-spacing: 1px;
+  }
+  .status-band.active .timer-val { display: block; }
+  .pointage-row {
+    padding: 0 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .btn-point {
+    padding: 16px 12px;
+    border-radius: 4px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-point:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-point-icon { font-size: 22px; }
+  .btn-prise { background: var(--green); color: white; }
+  .btn-prise:not(:disabled):hover { background: #4a7a4a; }
+  .btn-fin { background: var(--red); color: white; }
+  .btn-fin:not(:disabled):hover { background: #903030; }
+  .btn-saisie-manuelle {
+    width: calc(100% - 48px);
+    margin: 18px 24px 28px;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-saisie-manuelle:hover { border-color: var(--gold-lt); color: var(--gold); }
+  .history-wrap { padding: 0 24px; }
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .history-item:last-child { border-bottom: none; }
+  .h-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .h-dot.prise   { background: var(--green); }
+  .h-dot.fin     { background: var(--red); }
+  .h-dot.cloture { background: var(--gold); }
+  .h-text { flex: 1; }
+  .h-label { font-size: 15px; color: var(--dark); }
+  .h-sub   { font-size: 13px; color: var(--light); margin-top: 1px; }
+  .h-time  { font-family: var(--serif); font-size: 20px; color: var(--mid); }
+  .history-empty { font-size: 15px; color: var(--light); text-align: center; padding: 24px 0; letter-spacing: .5px; }
+  .pointage-plages-resume {
+    margin: 0 24px 20px;
+    padding: 14px 18px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .pointage-plages-resume .resume-label { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--light); }
+  .pointage-plages-resume .resume-value { font-family: var(--serif); font-size: 22px; color: var(--dark); margin-top: 4px; }
+  .pointage-plages-resume .resume-detail { font-size: 13px; color: var(--light); margin-top: 4px; }
+  .btn-retour {
+    display: block;
+    width: calc(100% - 48px);
+    margin: 0 24px 14px;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    transition: all .2s;
+    text-align: center;
+  }
+  .btn-retour:hover { border-color: var(--gold-lt); color: var(--gold); }
+
+  /* --- ORNEMENT --- */
+  .ornament {
+    text-align: center;
+    padding: 4px 24px 20px;
+    color: var(--border);
+    font-size: 20px;
+    letter-spacing: 8px;
+  }
+
+  .btn-copier-hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--light);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .divider-or {
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--border);
+    margin-bottom: 14px;
+  }
+
+  /* --- BOUTON CLOTURE --- */
+  .cloture-wrap { padding: 0 24px; margin-bottom: 6px; }
+  .btn-cloture {
+    width: 100%;
+    padding: 18px;
+    background: var(--gold);
+    color: var(--white);
+    border: none;
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-cloture:not(:disabled):hover { background: #8a6438; }
+  .btn-cloture:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-reset {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    transition: all .2s;
+    margin-top: 10px;
+  }
+  .btn-reset:hover { border-color: var(--red); color: var(--red); }
+  .btn-reset:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-reset:disabled:hover { border-color: var(--border); color: var(--light); }
+  .cloture-note {
+    text-align: center;
+    font-size: 13px;
+    color: var(--light);
+    letter-spacing: .5px;
+    margin-top: 8px;
+    margin-bottom: 32px;
+  }
+
+  /* --- CONFIG SERVEUR --- */
+  .server-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--light); letter-spacing: 1px;
+    text-transform: uppercase; margin-top: 6px;
+    cursor: pointer;
+  }
+  .server-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+  .server-dot.ok  { background: var(--green); }
+  .server-dot.err { background: var(--red); }
+
+  /* --- TOAST --- */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--dark);
+    color: var(--cream);
+    border-radius: 3px;
+    padding: 12px 22px;
+    font-size: 14px;
+    letter-spacing: 1px;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+    z-index: 999;
+    max-width: 88vw;
+    text-align: center;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--green); }
+  .toast.error   { background: var(--red); }
+  .toast.info    { background: var(--gold); }
+  .toast.warning { background: #a07030; }
+
+  /* --- MODAL SETTINGS --- */
+  .overlay {
+    display: none;
+    background: var(--cream);
+    padding: 32px 24px 52px;
+  }
+  .overlay.open { display: block; }
+  .sheet-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .sheet-close-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--mid);
+    font-size: 24px;
+    cursor: pointer;
+  }
+  .sheet-title {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 400;
+    color: var(--dark);
+  }
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 8px;
+  }
+  .field input {
+    width: 100%;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 13px 15px;
+    color: var(--dark);
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 300;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: var(--gold); }
+  .field .hint {
+    font-size: 13px;
+    color: var(--light);
+    margin-top: 6px;
+    line-height: 1.5;
+    letter-spacing: .3px;
+  }
+  .btn-enregistrer {
+    width: 100%;
+    padding: 16px;
+    background: var(--gold);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: background .2s;
+  }
+  .btn-enregistrer:hover { background: #8a6438; }
+
+  /* --- CLOTURE AUTO OVERLAY --- */
+  .auto-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: var(--cream);
+    display: none;
+    justify-content: flex-start; align-items: center;
+    overflow-y: auto;
+  }
+  .auto-overlay.show { display: flex; }
+  .auto-overlay-inner {
+    width: 100%; max-width: 420px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    display: flex; flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    justify-content: center;
+  }
+  .auto-title {
+    font-family: var(--serif); font-size: 24px;
+    color: var(--dark); margin-bottom: 6px; text-align: center;
+  }
+  .auto-subtitle {
+    font-size: 13px; color: var(--gold); letter-spacing: 1px;
+    margin-bottom: 32px; text-align: center;
+  }
+  .auto-steps { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+  .auto-step {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 4px; padding: 14px 16px;
+  }
+  .auto-step.active  { border-color: var(--gold-lt); background: #fdf8f2; }
+  .auto-step.done    { border-color: #b8d0b8; background: #f0f5f0; }
+  .auto-step.error   { border-color: var(--red); background: #fdf0f0; }
+  .auto-step-icon { font-size: 22px; width: 30px; text-align: center; }
+  .auto-step-label { flex: 1; font-size: 14px; color: var(--dark); }
+  .auto-step-status { font-size: 18px; }
+  .auto-result {
+    margin-top: 24px; text-align: center; width: 100%;
+    font-size: 14px; color: var(--light); line-height: 1.5;
+    min-height: 40px;
+  }
+  .auto-result.ok  { color: var(--green); font-size: 16px; }
+  .auto-result.err { color: var(--red); }
+  .auto-btn-cancel {
+    margin-top: 24px; width: 100%; padding: 16px;
+    background: transparent; color: var(--red); border: 1px solid var(--red);
+    border-radius: 4px; font-family: var(--sans); font-size: 13px;
+    font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; display: none;
+  }
+  .auto-btn-cancel.show { display: block; }
+  .auto-btn-cancel:disabled { opacity: 0.3; cursor: not-allowed; color: var(--light); border-color: var(--border); }
+  .auto-btn-close {
+    margin-top: 24px; width: 100%; padding: 16px;
+    background: var(--gold); color: white; border: none;
+    border-radius: 4px; font-family: var(--sans); font-size: 13px;
+    font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; display: none;
+  }
+  .auto-btn-close.show { display: block; }
+
+  /* --- LOADING --- */
+  .loading-cover {
+    position: fixed; inset: 0;
+    background: rgba(245,240,232,0.92);
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  .loading-cover.show { display: flex; }
+
+  /* --- LOGIN SCREEN --- */
+  .login-screen {
+    display: none;
+    min-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    background: var(--cream);
+  }
+  .login-screen.show { display: flex; }
+  .login-logo { margin-bottom: 32px; }
+  .login-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--mid);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .login-form {
+    width: 100%;
+    max-width: 340px;
+  }
+  .login-error {
+    display: none;
+    background: #fdf0f0;
+    border: 1px solid var(--red);
+    border-radius: 4px;
+    padding: 12px 16px;
+    color: var(--red);
+    font-size: 14px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .login-error.show { display: block; }
+  .btn-login {
+    width: 100%;
+    padding: 16px;
+    background: var(--gold);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .2s;
+    margin-top: 6px;
+  }
+  .btn-login:hover { background: #8a6438; }
+  .btn-login:disabled { opacity: 0.5; cursor: wait; }
+
+  /* --- LOGOUT BUTTON --- */
+  .logout-btn {
+    position: fixed;
+    top: 16px; left: 16px;
+    z-index: 300;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--light);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    transition: all .2s;
+  }
+  .logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* --- DEFAULT HOURS (settings) --- */
+  .defaults-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .defaults-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--dark);
+    margin-bottom: 14px;
+  }
+  .default-plage {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .default-plage .time-row { margin-bottom: 8px; }
+  .default-plage .time-row:last-child { margin-bottom: 0; }
+  .default-plage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .btn-add-default {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    color: var(--light);
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: all .2s;
+    margin-bottom: 16px;
+  }
+  .btn-add-default:hover { border-color: var(--gold-lt); color: var(--gold); }
+
+  .loader-ring {
+    width: 42px; height: 42px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .loader-text {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--mid);
+    text-align: center;
+    letter-spacing: .5px;
+  }
+
+  /* --- RECAP SEMAINE --- */
+  .recap-week-header {
+    padding: 0 24px 16px;
+    text-align: center;
+  }
+  .recap-week-label {
+    font-family: var(--serif);
+    font-size: 20px;
+    color: var(--dark);
+    letter-spacing: .5px;
+  }
+  .recap-week-range {
+    font-size: 13px;
+    color: var(--light);
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .recap-days { padding: 0 24px; }
+  .recap-day-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    transition: border-color .2s;
+  }
+  .recap-day-card.cloture {
+    border-left: 3px solid var(--green);
+  }
+  .recap-day-card.empty {
+    opacity: 0.55;
+  }
+  .recap-day-card.today {
+    border-color: var(--gold-lt);
+  }
+  .recap-day-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .recap-day-name {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--dark);
+  }
+  .recap-day-total {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+  .recap-day-plages {
+    font-size: 13px;
+    color: var(--light);
+    line-height: 1.5;
+  }
+  .recap-day-badge {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .recap-day-badge.cloture {
+    background: #e8f5e8;
+    color: var(--green);
+  }
+  .recap-day-badge.valide {
+    background: #d4edda;
+    color: #155724;
+  }
+  .recap-total-section {
+    padding: 0 24px;
+    margin: 16px 0 24px;
+  }
+  .recap-total-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .recap-total-label {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 4px;
+  }
+  .recap-total-value {
+    font-family: var(--serif);
+    font-size: 28px;
+    color: var(--dark);
+    letter-spacing: 1px;
+  }
+  .recap-total-detail {
+    font-size: 12px;
+    color: var(--light);
+    text-align: right;
+    line-height: 1.6;
+  }
+  .btn-recap {
+    width: calc(100% - 48px);
+    margin: 18px 24px 28px;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-recap:hover { border-color: var(--gold-lt); color: var(--gold); }
+  .recap-loading {
+    text-align: center;
+    padding: 40px 24px;
+  }
+  .recap-loading .loader-ring {
+    margin: 0 auto 16px;
+  }
+  .recap-loading-text {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--light);
+    letter-spacing: .5px;
+  }
+  .recap-error {
+    text-align: center;
+    padding: 24px;
+    color: var(--red);
+    font-size: 14px;
+  }
+  .recap-error-btn {
+    margin-top: 12px;
+    padding: 10px 24px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--mid);
+    cursor: pointer;
+  }
+  .recap-error-btn:hover { background: var(--cream2); }
+  .recap-refresh-section {
+    padding: 0 24px;
+    margin-top: 20px;
+    text-align: center;
+  }
+  .recap-last-sync {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--light);
+    margin-bottom: 10px;
+  }
+  .btn-recap-refresh {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-recap-refresh:hover { border-color: var(--gold-lt); color: var(--gold); }
+  .btn-recap-refresh:disabled { opacity: .5; cursor: wait; }
+
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-cover" id="loadingCover">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Chargement...</div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-logo">
+    <svg style="width:260px;height:auto;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" viewBox="15 21 243 38"><defs><style>.cls-1{fill:none;}.cls-1,.cls-2{stroke-width:0px;}.cls-3{clip-path:url(#clippath-4);}.cls-4{clip-path:url(#clippath-3);}.cls-5{clip-path:url(#clippath-7);}.cls-6{clip-path:url(#clippath-8);}.cls-7{clip-path:url(#clippath-6);}.cls-8{clip-path:url(#clippath-5);}.cls-9{isolation:isolate;opacity:.9;}</style><clipPath id="clippath-3"><rect class="cls-1" x="-497.79" y="-256.84" width="841.89" height="595.28"/></clipPath><clipPath id="clippath-4"><rect class="cls-1" x="17.21" y="22.44" width="26" height="28"/></clipPath><clipPath id="clippath-5"><rect class="cls-1" x="18.04" y="23.2" width="24.93" height="27.16"/></clipPath><clipPath id="clippath-6"><rect class="cls-1" x="-497.79" y="-262.85" width="841.89" height="595.28"/></clipPath><clipPath id="clippath-7"><rect class="cls-1" x="55.21" y="22.43" width="201" height="16"/></clipPath><clipPath id="clippath-8"><rect class="cls-1" x="55.92" y="22.98" width="199.93" height="14.86"/></clipPath></defs><g class="cls-4"><g class="cls-9"><g class="cls-3"><g class="cls-8"><path class="cls-2" d="m41.23,26.5c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2" d="m21.21,43.25c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2" d="m42.95,37.15c0-.12-.03-.15-.15-.09-.36.18-.72.36-1.08.56-.62.35-1.24.68-1.87,1.01-.43.22-.89.4-1.36.55-.52.17-1.06.27-1.61.33-.67.07-1.33.06-1.99-.02-.63-.08-1.25-.24-1.85-.48-.42-.17-.82-.35-1.21-.56-.65-.36-1.29-.73-1.93-1.1-.44-.25-.9-.47-1.38-.66-1.07-.43-2.2-.64-3.36-.66-.61-.01-1.2.03-1.8.11-1.01.14-1.95.47-2.85.9-.82.39-1.59.89-2.38,1.34-.08.05-.1.09-.1.17,0,.64,0,1.29,0,1.93,0,.04-.02.09.04.13.07-.07.17-.11.27-.16.16-.08.34-.14.5-.24.28-.18.58-.34.87-.51.25-.15.51-.28.76-.43.58-.36,1.21-.64,1.86-.87.3-.11.62-.18.94-.24.36-.07.73-.13,1.1-.15.65-.03,1.29-.01,1.93.1.62.11,1.21.29,1.79.52.31.13.61.29.91.44.34.17.68.35,1,.55.51.33,1.05.6,1.58.88.74.38,1.52.65,2.34.83.42.08.84.16,1.26.17.59.01,1.18.03,1.76-.02.5-.04.98-.12,1.46-.24.97-.23,1.88-.63,2.75-1.1.56-.31,1.12-.62,1.68-.92.09-.05.12-.1.12-.19,0-.62,0-1.25,0-1.87"/><path class="cls-2" d="m42.95,43.09c0-.65,0-1.3,0-1.94,0-.08-.02-.1-.1-.06-.49.23-.97.46-1.44.73-.57.33-1.14.65-1.72.94-.47.23-.98.39-1.49.54-.63.18-1.28.27-1.93.28-.92.02-1.82-.07-2.71-.35-.58-.19-1.12-.42-1.66-.71-.5-.26-.98-.57-1.48-.85-.3-.17-.59-.37-.91-.5-.36-.15-.71-.34-1.08-.48-.6-.23-1.22-.4-1.86-.51-.43-.07-.86-.11-1.29-.12-.84-.02-1.67.03-2.49.21-.38.08-.76.18-1.13.31-.29.1-.56.24-.85.35-.27.1-.52.24-.77.37-.53.27-1.01.62-1.55.88-.14.07-.26.16-.4.24-.07.04-.06.09-.06.15v1.94c0,.08,0,.12.11.07.46-.24.92-.47,1.36-.74.09-.05.11-.08.05-.18-.19-.33-.18-.67.03-.99.42-.66,1.46-.71,1.99-.1.28.32.46.68.57,1.07.13.45.18.91.22,1.37l-.09,1.28c-.08.41-.09.53-.21.93-.02.08,0,.09.07.12.54.21,1.1.35,1.68.44.23.03.22.04.28-.17.18-.69.24-1.1.29-1.81.08-1.25-.03-2.47-.62-3.61-.04-.07-.04-.11.06-.11.11,0,.22-.02.34-.03,1.3-.11,2.55.04,3.76.52.81.32,1.56.77,2.3,1.21.71.41,1.42.8,2.18,1.1.84-.31,1.69-.51,2.55-.58.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.11.03.22.07.32.11.12-.05.24-.09.36-.14.29-.12.57-.25.85-.39.18-.09.36-.19.54-.3.48-.28.97-.54,1.46-.81.05-.03.08-.08.08-.13"/><path class="cls-2" d="m42.95,48.34c0-.35,0-.64,0-.92,0-.11,0-.19-.13-.25-.07-.04-.14-.06-.21-.1-.25-.15-.51-.29-.77-.43-.44-.24-.88-.5-1.33-.71-.36-.17-.73-.33-1.1-.47-.04-.01-.07-.03-.11-.04-.07-.02-.13-.05-.2-.07-.18-.06-.36-.11-.54-.15-.01,0-.02,0-.03,0-.61-.15-1.23-.24-1.85-.28-.22-.01-.44-.02-.65-.02-.33,0-.67.01-1,.04-1.2.11-2.32.45-3.39.98-.84.41-1.64.91-2.46,1.35-.04.02-.09.05-.13.07-1.09.59-2.24.97-3.5,1.05-1.55.1-3.01-.18-4.39-.88-.47-.24-.93-.5-1.39-.77-.27-.16-.53-.33-.81-.47-.24-.12-.48-.25-.72-.39-.05-.03-.07-.08-.14-.05-.07.03-.04.08-.04.13,0,.63,0,1.25,0,1.88,0,.1.04.16.12.19.22.09.4.23.61.34.3.16.58.35.88.51.47.27.95.49,1.44.72.48.22.99.39,1.51.51.51.12,1.03.21,1.55.22.55,0,1.11.06,1.67,0,.44-.04.86-.11,1.29-.2.8-.17,1.55-.45,2.28-.82.43-.22.87-.43,1.28-.68.29-.18.59-.35.88-.53.33-.19.67-.37,1.02-.53.51-.24,1.04-.41,1.59-.54.45-.1.9-.15,1.35-.19.47-.04.95-.03,1.42.04.36.05.73.1,1.09.18.67.15,1.31.41,1.92.71.48.23.94.51,1.4.77.31.17.61.35.93.51.2.1.4.21.61.28.06.02.12.02.11-.05-.05-.34,0-.67-.02-.95"/><path class="cls-2" d="m18.04,32.53c.22-.11.44-.2.64-.32.67-.4,1.35-.77,2.02-1.15.34-.2.7-.37,1.06-.52.53-.22,1.07-.39,1.65-.48.47-.07.95-.12,1.43-.14.31-.01.62.03.93.05.27.02.54.05.81.1.67.13,1.31.37,1.94.66.1.05.21.08.3.14.27.18.57.33.85.5.35.2.7.41,1.05.6.34.18.67.38,1.02.54.37.16.74.31,1.12.44.35.12.71.23,1.07.31.46.09.93.16,1.4.16.6,0,1.2.03,1.79-.03.52-.05,1.03-.15,1.53-.28,1.03-.27,1.97-.74,2.89-1.24.42-.23.84-.47,1.26-.7.1-.05.14-.11.14-.21,0-.58,0-1.15,0-1.72q0-.26-.24-.16s-.08.02-.11.04c-.65.35-1.29.7-1.93,1.06-.52.29-1.05.56-1.61.77-.13.05-.26.1-.38.14-.13.04-.27.09-.4.12-.53.15-1.08.23-1.63.27-1.04.07-2.06-.02-3.06-.33-.8-.25-1.54-.62-2.25-1.04-.72-.42-1.43-.85-2.18-1.21-1.45-.69-2.98-.99-4.59-.92-1.08.04-2.13.23-3.14.62-.71.28-1.38.62-2.04,1-.41.24-.82.49-1.22.73-.06.04-.1.07-.1.15,0,.68,0,1.36,0,2.05"/><path class="cls-2" d="m42.95,33.11c0-.13-.04-.14-.15-.09-.42.2-.84.41-1.25.64-.46.26-.92.52-1.4.76-.41.21-.81.4-1.24.57-.69.27-1.4.43-2.14.49-1.09.09-2.16,0-3.21-.32-.34-.1-.65-.24-.97-.38-.27-.12-.54-.26-.8-.4-.37-.2-.73-.41-1.08-.64-.19-.12-.41-.21-.62-.33-.34-.2-.69-.38-1.05-.54-.3-.14-.6-.27-.92-.36-.33-.1-.65-.21-.99-.28-.65-.15-1.3-.21-1.97-.24-.42-.01-.85.01-1.27.05-.69.07-1.37.19-2.02.41-.43.14-.85.3-1.26.5-.26.13-.53.24-.78.38-.2.11-.41.24-.61.36-.33.19-.64.43-1,.58-.12.05-.19.13-.18.28.02.29,0,.59,0,.88,0,.32,0,.65,0,.97,0,.11.03.13.13.08.22-.11.44-.21.65-.33.42-.24.82-.5,1.24-.73.33-.18.66-.36.98-.53.3-.16.61-.3.93-.42.85-.35,1.75-.49,2.67-.52.39-.01.78.02,1.17.05.53.05,1.05.15,1.55.32.73.24,1.42.56,2.07.95.41.25.84.49,1.26.73.2.11.42.2.61.32.28.18.59.31.89.44.35.15.71.27,1.08.37.4.11.81.2,1.22.26.39.05.78.07,1.17.07.65,0,1.3,0,1.93-.1.57-.1,1.13-.22,1.67-.43.31-.12.63-.21.93-.36.37-.19.75-.36,1.11-.58.49-.29,1-.55,1.5-.82.08-.04.11-.09.11-.17,0-.63,0-1.26,0-1.89"/><path class="cls-2" d="m42.95,27.54c0-.61,0-1.22,0-1.83,0-.17-.1-.22-.22-.28-.04-.02-.09-.03-.14-.06-.39-.22-.78-.44-1.18-.66-.39-.21-.77-.45-1.18-.62-.32-.13-.65-.27-.98-.38-.88-.29-1.79-.46-2.72-.51-.65-.03-1.31,0-1.96.08-.97.12-1.88.39-2.75.8-.74.34-1.43.76-2.12,1.16-.25.14-.5.28-.75.42-.63.35-1.3.63-2,.81-.72.19-1.45.25-2.19.23-.35,0-.71-.02-1.05-.07-.75-.12-1.47-.33-2.17-.65-.48-.22-.94-.47-1.4-.73-.65-.37-1.28-.77-1.96-1.09-.1-.05-.14-.06-.14.07,0,.64,0,1.29,0,1.93,0,.09.04.14.11.17.64.31,1.21.73,1.85,1.04.4.2.79.42,1.2.6.88-.33,1.75-.54,2.65-.62.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.14.04.28.09.42.15.12-.05.23-.1.35-.15.87-.39,1.67-.9,2.49-1.37.75-.43,1.53-.8,2.37-1.03.63-.17,1.26-.25,1.91-.27.5-.02.99.02,1.48.09.06,0,.2-.02.11.13-.45.82-.63,1.71-.67,2.62-.05,1.03,0,1.72.26,2.72.03.12.09.14.19.12.58-.1,1.14-.21,1.68-.43.1-.04.13-.08.1-.18-.15-.53-.14-.75-.19-1.29,0-.32,0-.65,0-.97.02-.17.04-.33.06-.5.04-.26.11-.5.2-.74.09-.27.21-.52.38-.74.14-.18.31-.35.54-.45.46-.21,1.02-.14,1.38.16.31.26.51.76.25,1.22-.02.03-.03.06.01.08.08.05.16.12.25.16.32.17.67.3.98.49.04.03.09.06.14.04.06-.03.03-.09.03-.13"/></g></g></g></g><g class="cls-7"><g class="cls-9"><g class="cls-5"><g class="cls-6"><path class="cls-2" d="m66.38,24.69v2.37c-1.16-.97-2.35-1.45-3.59-1.45-1.36,0-2.51.49-3.44,1.47-.94.97-1.41,2.16-1.41,3.57s.47,2.56,1.41,3.52c.94.96,2.09,1.43,3.45,1.43.7,0,1.3-.11,1.79-.34.27-.11.56-.27.85-.46.29-.19.61-.43.93-.7v2.41c-1.15.65-2.35.97-3.61.97-1.89,0-3.51-.66-4.85-1.98-1.33-1.33-2-2.94-2-4.83,0-1.69.56-3.19,1.67-4.52,1.37-1.62,3.15-2.43,5.33-2.43,1.19,0,2.34.32,3.45.97"/><polygon class="cls-2" points="74.79 29.16 80.51 29.16 80.51 23.98 82.51 23.98 82.51 37.23 80.51 37.23 80.51 31.04 74.79 31.04 74.79 37.23 72.79 37.23 72.79 23.98 74.79 23.98 74.79 29.16"/><path class="cls-2" d="m96.99,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><path class="cls-2" d="m110.24,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.02.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><polygon class="cls-2" points="121.85 23.98 121.85 35.35 125.75 35.35 125.75 37.23 119.85 37.23 119.85 23.98 121.85 23.98"/><polygon class="cls-2" points="138.48 25.86 133.16 25.86 133.16 29.04 138.32 29.04 138.32 30.92 133.16 30.92 133.16 35.35 138.48 35.35 138.48 37.23 131.16 37.23 131.16 23.98 138.48 23.98 138.48 25.86"/><path class="cls-2" d="m152.12,25.95l-1.62.96c-.3-.53-.59-.87-.87-1.03-.29-.18-.66-.28-1.11-.28-.55,0-1.02.16-1.38.47-.37.31-.55.7-.55,1.17,0,.65.48,1.17,1.44,1.56l1.32.54c1.08.43,1.86.97,2.36,1.59.5.63.75,1.4.75,2.3,0,1.22-.41,2.23-1.22,3.02-.82.8-1.83,1.2-3.05,1.2-1.15,0-2.1-.34-2.85-1.02-.74-.68-1.2-1.64-1.38-2.88l2.03-.45c.09.78.25,1.32.48,1.61.41.57,1.01.86,1.8.86.62,0,1.14-.21,1.55-.63.41-.42.62-.95.62-1.59,0-.26-.04-.49-.11-.71-.07-.21-.18-.41-.33-.59-.15-.18-.35-.35-.59-.51-.24-.16-.53-.31-.86-.45l-1.28-.53c-1.82-.77-2.72-1.89-2.72-3.37,0-1,.38-1.83,1.14-2.5.76-.68,1.71-1.01,2.84-1.01,1.53,0,2.72.74,3.58,2.23"/><polygon class="cls-2" points="164.43 37.23 167.22 22.98 171.77 33.28 176.49 22.98 178.99 37.23 176.94 37.23 175.66 29.23 171.74 37.84 167.93 29.22 166.5 37.23 164.43 37.23"/><path class="cls-2" d="m187.32,23.98v7.98c0,1.14.19,1.97.56,2.5.55.76,1.34,1.14,2.34,1.14s1.8-.38,2.35-1.14c.37-.51.56-1.34.56-2.5v-7.98h2v8.53c0,1.4-.43,2.55-1.3,3.45-.98,1.01-2.18,1.51-3.61,1.51s-2.62-.5-3.6-1.51c-.87-.9-1.31-2.05-1.31-3.45v-8.53h2Z"/><path class="cls-2" d="m206.32,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.01.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><path class="cls-2" d="m222.45,30.33h5.48v.44c0,1-.12,1.88-.35,2.65-.23.71-.61,1.37-1.16,1.99-1.23,1.38-2.8,2.08-4.7,2.08s-3.45-.67-4.77-2.01c-1.32-1.35-1.98-2.96-1.98-4.84s.67-3.55,2.02-4.89c1.34-1.35,2.98-2.02,4.91-2.02,1.04,0,2,.21,2.9.63.86.42,1.7,1.11,2.53,2.06l-1.43,1.37c-1.09-1.45-2.41-2.17-3.97-2.17-1.4,0-2.58.48-3.53,1.45-.95.95-1.43,2.14-1.43,3.57s.53,2.69,1.59,3.65c.99.89,2.06,1.33,3.22,1.33.98,0,1.87-.33,2.65-1,.78-.67,1.22-1.47,1.31-2.4h-3.31v-1.88Z"/><path class="cls-2" d="m241.14,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><polygon class="cls-2" points="252.82 25.86 252.82 37.23 250.82 37.23 250.82 25.86 247.77 25.86 247.77 23.98 255.86 23.98 255.86 25.86 252.82 25.86"/></g></g></g></g><text x="57" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="8.5" font-style="italic" fill="#1a1a1a" textLength="199" lengthAdjust="spacing">Pisciculture familiale depuis 1898</text></svg>
+  </div>
+  <div class="login-title">Connexion</div>
+  <div class="login-form" onkeydown="if(event.key==='Enter')login()">
+    <div class="login-error" id="loginError"></div>
+    <div class="field">
+      <label>Adresse e-mail Ecollaboratrice</label>
+      <input type="email" id="loginEmail" placeholder="votre@email.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <input type="password" id="loginPassword" placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;" autocomplete="current-password" />
+    </div>
+    <div class="field">
+      <label>URL du serveur</label>
+      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="https://pointage-ecollab-serveur.up.railway.app" />
+      <div class="hint">Adresse du serveur de clôture.</div>
+    </div>
+    <button class="btn-login" id="btnLogin" onclick="login()">Se connecter</button>
+  </div>
+</div>
+
+<!-- OVERLAY CLOTURE AUTOMATIQUE -->
+<div class="auto-overlay" id="autoOverlay">
+<div class="auto-overlay-inner">
+  <div class="auto-title">Clôture automatique</div>
+  <div class="auto-subtitle" id="autoSubtitle">--</div>
+  <div class="auto-steps">
+    <div class="auto-step" id="step1">
+      <div class="auto-step-icon">&#x1f510;</div>
+      <div class="auto-step-label">Connexion à Ecollaboratrice</div>
+      <div class="auto-step-status" id="step1s">&#x25CB;</div>
+    </div>
+    <div class="auto-step" id="step2">
+      <div class="auto-step-icon">&#x1f4c5;</div>
+      <div class="auto-step-label">Ouverture du jour</div>
+      <div class="auto-step-status" id="step2s">&#x25CB;</div>
+    </div>
+    <div class="auto-step" id="step3">
+      <div class="auto-step-icon">&#x2699;&#xFE0F;</div>
+      <div class="auto-step-label">Injection des horaires</div>
+      <div class="auto-step-status" id="step3s">&#x25CB;</div>
+    </div>
+    <div class="auto-step" id="step4">
+      <div class="auto-step-icon">&#x1f4be;</div>
+      <div class="auto-step-label">Sauvegarde</div>
+      <div class="auto-step-status" id="step4s">&#x25CB;</div>
+    </div>
+  </div>
+  <div class="auto-result" id="autoResult"></div>
+  <button class="auto-btn-cancel" id="autoBtnCancel" onclick="cancelCloture()">
+    Annuler
+  </button>
+  <button class="auto-btn-close" id="autoBtnClose" onclick="closeAutoOverlay()">
+    Fermer
+  </button>
+</div>
+</div>
+
+<!-- PAGE POINTAGE (principale) -->
+<div id="pointageScreen" style="display:none">
+
+<div class="header">
+  <div class="header-logo-wrap">
+    <svg style="width:260px;height:auto;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" viewBox="15 21 243 38"><defs><style>.cls-1p{fill:none;}.cls-1p,.cls-2p{stroke-width:0px;}.cls-3p{clip-path:url(#cp-4);}.cls-4p{clip-path:url(#cp-3);}.cls-5p{clip-path:url(#cp-7);}.cls-6p{clip-path:url(#cp-8);}.cls-7p{clip-path:url(#cp-6);}.cls-8p{clip-path:url(#cp-5);}.cls-9p{isolation:isolate;opacity:.9;}</style><clipPath id="cp-3"><rect class="cls-1p" x="-497.79" y="-256.84" width="841.89" height="595.28"/></clipPath><clipPath id="cp-4"><rect class="cls-1p" x="17.21" y="22.44" width="26" height="28"/></clipPath><clipPath id="cp-5"><rect class="cls-1p" x="18.04" y="23.2" width="24.93" height="27.16"/></clipPath><clipPath id="cp-6"><rect class="cls-1p" x="-497.79" y="-262.85" width="841.89" height="595.28"/></clipPath><clipPath id="cp-7"><rect class="cls-1p" x="55.21" y="22.43" width="201" height="16"/></clipPath><clipPath id="cp-8"><rect class="cls-1p" x="55.92" y="22.98" width="199.93" height="14.86"/></clipPath></defs><g class="cls-4p"><g class="cls-9p"><g class="cls-3p"><g class="cls-8p"><path class="cls-2p" d="m41.23,26.5c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2p" d="m21.21,43.25c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2p" d="m42.95,37.15c0-.12-.03-.15-.15-.09-.36.18-.72.36-1.08.56-.62.35-1.24.68-1.87,1.01-.43.22-.89.4-1.36.55-.52.17-1.06.27-1.61.33-.67.07-1.33.06-1.99-.02-.63-.08-1.25-.24-1.85-.48-.42-.17-.82-.35-1.21-.56-.65-.36-1.29-.73-1.93-1.1-.44-.25-.9-.47-1.38-.66-1.07-.43-2.2-.64-3.36-.66-.61-.01-1.2.03-1.8.11-1.01.14-1.95.47-2.85.9-.82.39-1.59.89-2.38,1.34-.08.05-.1.09-.1.17,0,.64,0,1.29,0,1.93,0,.04-.02.09.04.13.07-.07.17-.11.27-.16.16-.08.34-.14.5-.24.28-.18.58-.34.87-.51.25-.15.51-.28.76-.43.58-.36,1.21-.64,1.86-.87.3-.11.62-.18.94-.24.36-.07.73-.13,1.1-.15.65-.03,1.29-.01,1.93.1.62.11,1.21.29,1.79.52.31.13.61.29.91.44.34.17.68.35,1,.55.51.33,1.05.6,1.58.88.74.38,1.52.65,2.34.83.42.08.84.16,1.26.17.59.01,1.18.03,1.76-.02.5-.04.98-.12,1.46-.24.97-.23,1.88-.63,2.75-1.1.56-.31,1.12-.62,1.68-.92.09-.05.12-.1.12-.19,0-.62,0-1.25,0-1.87"/><path class="cls-2p" d="m42.95,43.09c0-.65,0-1.3,0-1.94,0-.08-.02-.1-.1-.06-.49.23-.97.46-1.44.73-.57.33-1.14.65-1.72.94-.47.23-.98.39-1.49.54-.63.18-1.28.27-1.93.28-.92.02-1.82-.07-2.71-.35-.58-.19-1.12-.42-1.66-.71-.5-.26-.98-.57-1.48-.85-.3-.17-.59-.37-.91-.5-.36-.15-.71-.34-1.08-.48-.6-.23-1.22-.4-1.86-.51-.43-.07-.86-.11-1.29-.12-.84-.02-1.67.03-2.49.21-.38.08-.76.18-1.13.31-.29.1-.56.24-.85.35-.27.1-.52.24-.77.37-.53.27-1.01.62-1.55.88-.14.07-.26.16-.4.24-.07.04-.06.09-.06.15v1.94c0,.08,0,.12.11.07.46-.24.92-.47,1.36-.74.09-.05.11-.08.05-.18-.19-.33-.18-.67.03-.99.42-.66,1.46-.71,1.99-.1.28.32.46.68.57,1.07.13.45.18.91.22,1.37l-.09,1.28c-.08.41-.09.53-.21.93-.02.08,0,.09.07.12.54.21,1.1.35,1.68.44.23.03.22.04.28-.17.18-.69.24-1.1.29-1.81.08-1.25-.03-2.47-.62-3.61-.04-.07-.04-.11.06-.11.11,0,.22-.02.34-.03,1.3-.11,2.55.04,3.76.52.81.32,1.56.77,2.3,1.21.71.41,1.42.8,2.18,1.1.84-.31,1.69-.51,2.55-.58.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.11.03.22.07.32.11.12-.05.24-.09.36-.14.29-.12.57-.25.85-.39.18-.09.36-.19.54-.3.48-.28.97-.54,1.46-.81.05-.03.08-.08.08-.13"/><path class="cls-2p" d="m42.95,48.34c0-.35,0-.64,0-.92,0-.11,0-.19-.13-.25-.07-.04-.14-.06-.21-.1-.25-.15-.51-.29-.77-.43-.44-.24-.88-.5-1.33-.71-.36-.17-.73-.33-1.1-.47-.04-.01-.07-.03-.11-.04-.07-.02-.13-.05-.2-.07-.18-.06-.36-.11-.54-.15-.01,0-.02,0-.03,0-.61-.15-1.23-.24-1.85-.28-.22-.01-.44-.02-.65-.02-.33,0-.67.01-1,.04-1.2.11-2.32.45-3.39.98-.84.41-1.64.91-2.46,1.35-.04.02-.09.05-.13.07-1.09.59-2.24.97-3.5,1.05-1.55.1-3.01-.18-4.39-.88-.47-.24-.93-.5-1.39-.77-.27-.16-.53-.33-.81-.47-.24-.12-.48-.25-.72-.39-.05-.03-.07-.08-.14-.05-.07.03-.04.08-.04.13,0,.63,0,1.25,0,1.88,0,.1.04.16.12.19.22.09.4.23.61.34.3.16.58.35.88.51.47.27.95.49,1.44.72.48.22.99.39,1.51.51.51.12,1.03.21,1.55.22.55,0,1.11.06,1.67,0,.44-.04.86-.11,1.29-.2.8-.17,1.55-.45,2.28-.82.43-.22.87-.43,1.28-.68.29-.18.59-.35.88-.53.33-.19.67-.37,1.02-.53.51-.24,1.04-.41,1.59-.54.45-.1.9-.15,1.35-.19.47-.04.95-.03,1.42.04.36.05.73.1,1.09.18.67.15,1.31.41,1.92.71.48.23.94.51,1.4.77.31.17.61.35.93.51.2.1.4.21.61.28.06.02.12.02.11-.05-.05-.34,0-.67-.02-.95"/><path class="cls-2p" d="m18.04,32.53c.22-.11.44-.2.64-.32.67-.4,1.35-.77,2.02-1.15.34-.2.7-.37,1.06-.52.53-.22,1.07-.39,1.65-.48.47-.07.95-.12,1.43-.14.31-.01.62.03.93.05.27.02.54.05.81.1.67.13,1.31.37,1.94.66.1.05.21.08.3.14.27.18.57.33.85.5.35.2.7.41,1.05.6.34.18.67.38,1.02.54.37.16.74.31,1.12.44.35.12.71.23,1.07.31.46.09.93.16,1.4.16.6,0,1.2.03,1.79-.03.52-.05,1.03-.15,1.53-.28,1.03-.27,1.97-.74,2.89-1.24.42-.23.84-.47,1.26-.7.1-.05.14-.11.14-.21,0-.58,0-1.15,0-1.72q0-.26-.24-.16s-.08.02-.11.04c-.65.35-1.29.7-1.93,1.06-.52.29-1.05.56-1.61.77-.13.05-.26.1-.38.14-.13.04-.27.09-.4.12-.53.15-1.08.23-1.63.27-1.04.07-2.06-.02-3.06-.33-.8-.25-1.54-.62-2.25-1.04-.72-.42-1.43-.85-2.18-1.21-1.45-.69-2.98-.99-4.59-.92-1.08.04-2.13.23-3.14.62-.71.28-1.38.62-2.04,1-.41.24-.82.49-1.22.73-.06.04-.1.07-.1.15,0,.68,0,1.36,0,2.05"/><path class="cls-2p" d="m42.95,33.11c0-.13-.04-.14-.15-.09-.42.2-.84.41-1.25.64-.46.26-.92.52-1.4.76-.41.21-.81.4-1.24.57-.69.27-1.4.43-2.14.49-1.09.09-2.16,0-3.21-.32-.34-.1-.65-.24-.97-.38-.27-.12-.54-.26-.8-.4-.37-.2-.73-.41-1.08-.64-.19-.12-.41-.21-.62-.33-.34-.2-.69-.38-1.05-.54-.3-.14-.6-.27-.92-.36-.33-.1-.65-.21-.99-.28-.65-.15-1.3-.21-1.97-.24-.42-.01-.85.01-1.27.05-.69.07-1.37.19-2.02.41-.43.14-.85.3-1.26.5-.26.13-.53.24-.78.38-.2.11-.41.24-.61.36-.33.19-.64.43-1,.58-.12.05-.19.13-.18.28.02.29,0,.59,0,.88,0,.32,0,.65,0,.97,0,.11.03.13.13.08.22-.11.44-.21.65-.33.42-.24.82-.5,1.24-.73.33-.18.66-.36.98-.53.3-.16.61-.3.93-.42.85-.35,1.75-.49,2.67-.52.39-.01.78.02,1.17.05.53.05,1.05.15,1.55.32.73.24,1.42.56,2.07.95.41.25.84.49,1.26.73.2.11.42.2.61.32.28.18.59.31.89.44.35.15.71.27,1.08.37.4.11.81.2,1.22.26.39.05.78.07,1.17.07.65,0,1.3,0,1.93-.1.57-.1,1.13-.22,1.67-.43.31-.12.63-.21.93-.36.37-.19.75-.36,1.11-.58.49-.29,1-.55,1.5-.82.08-.04.11-.09.11-.17,0-.63,0-1.26,0-1.89"/><path class="cls-2p" d="m42.95,27.54c0-.61,0-1.22,0-1.83,0-.17-.1-.22-.22-.28-.04-.02-.09-.03-.14-.06-.39-.22-.78-.44-1.18-.66-.39-.21-.77-.45-1.18-.62-.32-.13-.65-.27-.98-.38-.88-.29-1.79-.46-2.72-.51-.65-.03-1.31,0-1.96.08-.97.12-1.88.39-2.75.8-.74.34-1.43.76-2.12,1.16-.25.14-.5.28-.75.42-.63.35-1.3.63-2,.81-.72.19-1.45.25-2.19.23-.35,0-.71-.02-1.05-.07-.75-.12-1.47-.33-2.17-.65-.48-.22-.94-.47-1.4-.73-.65-.37-1.28-.77-1.96-1.09-.1-.05-.14-.06-.14.07,0,.64,0,1.29,0,1.93,0,.09.04.14.11.17.64.31,1.21.73,1.85,1.04.4.2.79.42,1.2.6.88-.33,1.75-.54,2.65-.62.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.14.04.28.09.42.15.12-.05.23-.1.35-.15.87-.39,1.67-.9,2.49-1.37.75-.43,1.53-.8,2.37-1.03.63-.17,1.26-.25,1.91-.27.5-.02.99.02,1.48.09.06,0,.2-.02.11.13-.45.82-.63,1.71-.67,2.62-.05,1.03,0,1.72.26,2.72.03.12.09.14.19.12.58-.1,1.14-.21,1.68-.43.1-.04.13-.08.1-.18-.15-.53-.14-.75-.19-1.29,0-.32,0-.65,0-.97.02-.17.04-.33.06-.5.04-.26.11-.5.2-.74.09-.27.21-.52.38-.74.14-.18.31-.35.54-.45.46-.21,1.02-.14,1.38.16.31.26.51.76.25,1.22-.02.03-.03.06.01.08.08.05.16.12.25.16.32.17.67.3.98.49.04.03.09.06.14.04.06-.03.03-.09.03-.13"/></g></g></g></g><g class="cls-7p"><g class="cls-9p"><g class="cls-5p"><g class="cls-6p"><path class="cls-2p" d="m66.38,24.69v2.37c-1.16-.97-2.35-1.45-3.59-1.45-1.36,0-2.51.49-3.44,1.47-.94.97-1.41,2.16-1.41,3.57s.47,2.56,1.41,3.52c.94.96,2.09,1.43,3.45,1.43.7,0,1.3-.11,1.79-.34.27-.11.56-.27.85-.46.29-.19.61-.43.93-.7v2.41c-1.15.65-2.35.97-3.61.97-1.89,0-3.51-.66-4.85-1.98-1.33-1.33-2-2.94-2-4.83,0-1.69.56-3.19,1.67-4.52,1.37-1.62,3.15-2.43,5.33-2.43,1.19,0,2.34.32,3.45.97"/><polygon class="cls-2p" points="74.79 29.16 80.51 29.16 80.51 23.98 82.51 23.98 82.51 37.23 80.51 37.23 80.51 31.04 74.79 31.04 74.79 37.23 72.79 37.23 72.79 23.98 74.79 23.98 74.79 29.16"/><path class="cls-2p" d="m96.99,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><path class="cls-2p" d="m110.24,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.02.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><polygon class="cls-2p" points="121.85 23.98 121.85 35.35 125.75 35.35 125.75 37.23 119.85 37.23 119.85 23.98 121.85 23.98"/><polygon class="cls-2p" points="138.48 25.86 133.16 25.86 133.16 29.04 138.32 29.04 138.32 30.92 133.16 30.92 133.16 35.35 138.48 35.35 138.48 37.23 131.16 37.23 131.16 23.98 138.48 23.98 138.48 25.86"/><path class="cls-2p" d="m152.12,25.95l-1.62.96c-.3-.53-.59-.87-.87-1.03-.29-.18-.66-.28-1.11-.28-.55,0-1.02.16-1.38.47-.37.31-.55.7-.55,1.17,0,.65.48,1.17,1.44,1.56l1.32.54c1.08.43,1.86.97,2.36,1.59.5.63.75,1.4.75,2.3,0,1.22-.41,2.23-1.22,3.02-.82.8-1.83,1.2-3.05,1.2-1.15,0-2.1-.34-2.85-1.02-.74-.68-1.2-1.64-1.38-2.88l2.03-.45c.09.78.25,1.32.48,1.61.41.57,1.01.86,1.8.86.62,0,1.14-.21,1.55-.63.41-.42.62-.95.62-1.59,0-.26-.04-.49-.11-.71-.07-.21-.18-.41-.33-.59-.15-.18-.35-.35-.59-.51-.24-.16-.53-.31-.86-.45l-1.28-.53c-1.82-.77-2.72-1.89-2.72-3.37,0-1,.38-1.83,1.14-2.5.76-.68,1.71-1.01,2.84-1.01,1.53,0,2.72.74,3.58,2.23"/><polygon class="cls-2p" points="164.43 37.23 167.22 22.98 171.77 33.28 176.49 22.98 178.99 37.23 176.94 37.23 175.66 29.23 171.74 37.84 167.93 29.22 166.5 37.23 164.43 37.23"/><path class="cls-2p" d="m187.32,23.98v7.98c0,1.14.19,1.97.56,2.5.55.76,1.34,1.14,2.34,1.14s1.8-.38,2.35-1.14c.37-.51.56-1.34.56-2.5v-7.98h2v8.53c0,1.4-.43,2.55-1.3,3.45-.98,1.01-2.18,1.51-3.61,1.51s-2.62-.5-3.6-1.51c-.87-.9-1.31-2.05-1.31-3.45v-8.53h2Z"/><path class="cls-2p" d="m206.32,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.01.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><path class="cls-2p" d="m222.45,30.33h5.48v.44c0,1-.12,1.88-.35,2.65-.23.71-.61,1.37-1.16,1.99-1.23,1.38-2.8,2.08-4.7,2.08s-3.45-.67-4.77-2.01c-1.32-1.35-1.98-2.96-1.98-4.84s.67-3.55,2.02-4.89c1.34-1.35,2.98-2.02,4.91-2.02,1.04,0,2,.21,2.9.63.86.42,1.7,1.11,2.53,2.06l-1.43,1.37c-1.09-1.45-2.41-2.17-3.97-2.17-1.4,0-2.58.48-3.53,1.45-.95.95-1.43,2.14-1.43,3.57s.53,2.69,1.59,3.65c.99.89,2.06,1.33,3.22,1.33.98,0,1.87-.33,2.65-1,.78-.67,1.22-1.47,1.31-2.4h-3.31v-1.88Z"/><path class="cls-2p" d="m241.14,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><polygon class="cls-2p" points="252.82 25.86 252.82 37.23 250.82 37.23 250.82 25.86 247.77 25.86 247.77 23.98 255.86 23.98 255.86 25.86 252.82 25.86"/></g></g></g></g><text x="57" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="8.5" font-style="italic" fill="#1a1a1a" textLength="199" lengthAdjust="spacing">Pisciculture familiale depuis 1898</text></svg>
+  </div>
+  <div class="header-title">Pointage</div>
+  <div class="header-sub" id="pDateDisplay">--</div>
+</div>
+
+<button class="logout-btn" onclick="logout()" title="Deconnexion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+
+<button class="settings-btn" onclick="openSettings()" title="Paramètres">&#x2699;</button>
+
+<!-- HORLOGE -->
+<div class="time-section">
+  <div class="time-display" id="clock">
+    <span id="clockH">--</span><span class="time-colon">:</span><span id="clockM">--</span><span class="time-colon">:</span><span id="clockS">--</span>
+  </div>
+</div>
+
+<!-- STATUT -->
+<div class="status-band" id="statusBand">
+  <div class="status-indicator"></div>
+  <div>
+    <div class="status-label">Statut</div>
+    <div class="status-value" id="statusValue">Hors poste</div>
+  </div>
+  <div class="timer-val" id="timerVal">0:00:00</div>
+</div>
+
+<!-- BOUTONS POINTAGE -->
+<div class="pointage-row">
+  <button class="btn-point btn-prise" id="btnPrise" onclick="pointePrise()">
+    <span class="btn-point-icon">&#x25B6;</span>Prise de poste
+  </button>
+  <button class="btn-point btn-fin" id="btnFin" onclick="pointeFin()" disabled>
+    <span class="btn-point-icon">&#x25A0;</span>Fin de poste
+  </button>
+</div>
+
+<!-- RESUME PLAGES -->
+<div class="pointage-plages-resume" id="pointageResume" style="display:none">
+  <div class="resume-label">Plages du jour</div>
+  <div class="resume-value" id="pointageTotal">--</div>
+  <div class="resume-detail" id="pointageDetail"></div>
+</div>
+
+<!-- ORNEMENT -->
+<div class="ornament">&middot; &middot; &middot;</div>
+
+<!-- CLOTURE -->
+<div class="cloture-wrap">
+  <div class="server-status" onclick="testServeur()">
+    <div class="server-dot" id="serverDotP"></div>
+    <span id="serverStatusTxtP">Serveur non teste</span>
+  </div>
+  <button class="btn-cloture" id="btnClotureP" onclick="cloturerJournee()" disabled>
+    Clôturer
+  </button>
+  <div class="cloture-note" id="clotureNoteP">
+    Se connecte et saisit automatiquement dans Ecollaboratrice
+  </div>
+</div>
+
+<div style="padding:0 24px;margin-top:8px">
+  <button class="btn-reset" id="btnResetP" onclick="reinitialiser()">&#x21BA; Reinitialiser la journee</button>
+</div>
+
+<div style="height:24px"></div>
+
+<!-- HISTORIQUE -->
+<div class="section-head" style="padding-bottom:8px">
+  <div class="section-title">Historique</div>
+</div>
+<div class="history-wrap" id="historyList">
+  <div class="history-empty">Aucun pointage aujourd'hui</div>
+</div>
+
+<button class="btn-saisie-manuelle" onclick="showPage('main')">&#x270E; Saisie manuelle</button>
+
+<button class="btn-recap" onclick="_recapFrom='pointage';showPage('recap')">&#x1F4CB; Recap de la semaine</button>
+
+</div><!-- /pointageScreen -->
+
+<div id="mainContent" style="display:none">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo-wrap">
+    <svg style="width:260px;height:auto;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" viewBox="15 21 243 38"><defs><style>.cls-1{fill:none;}.cls-1,.cls-2{stroke-width:0px;}.cls-3{clip-path:url(#clippath-4);}.cls-4{clip-path:url(#clippath-3);}.cls-5{clip-path:url(#clippath-7);}.cls-6{clip-path:url(#clippath-8);}.cls-7{clip-path:url(#clippath-6);}.cls-8{clip-path:url(#clippath-5);}.cls-9{isolation:isolate;opacity:.9;}</style><clipPath id="clippath-3"><rect class="cls-1" x="-497.79" y="-256.84" width="841.89" height="595.28"/></clipPath><clipPath id="clippath-4"><rect class="cls-1" x="17.21" y="22.44" width="26" height="28"/></clipPath><clipPath id="clippath-5"><rect class="cls-1" x="18.04" y="23.2" width="24.93" height="27.16"/></clipPath><clipPath id="clippath-6"><rect class="cls-1" x="-497.79" y="-262.85" width="841.89" height="595.28"/></clipPath><clipPath id="clippath-7"><rect class="cls-1" x="55.21" y="22.43" width="201" height="16"/></clipPath><clipPath id="clippath-8"><rect class="cls-1" x="55.92" y="22.98" width="199.93" height="14.86"/></clipPath></defs><g class="cls-4"><g class="cls-9"><g class="cls-3"><g class="cls-8"><path class="cls-2" d="m41.23,26.5c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2" d="m21.21,43.25c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2" d="m42.95,37.15c0-.12-.03-.15-.15-.09-.36.18-.72.36-1.08.56-.62.35-1.24.68-1.87,1.01-.43.22-.89.4-1.36.55-.52.17-1.06.27-1.61.33-.67.07-1.33.06-1.99-.02-.63-.08-1.25-.24-1.85-.48-.42-.17-.82-.35-1.21-.56-.65-.36-1.29-.73-1.93-1.1-.44-.25-.9-.47-1.38-.66-1.07-.43-2.2-.64-3.36-.66-.61-.01-1.2.03-1.8.11-1.01.14-1.95.47-2.85.9-.82.39-1.59.89-2.38,1.34-.08.05-.1.09-.1.17,0,.64,0,1.29,0,1.93,0,.04-.02.09.04.13.07-.07.17-.11.27-.16.16-.08.34-.14.5-.24.28-.18.58-.34.87-.51.25-.15.51-.28.76-.43.58-.36,1.21-.64,1.86-.87.3-.11.62-.18.94-.24.36-.07.73-.13,1.1-.15.65-.03,1.29-.01,1.93.1.62.11,1.21.29,1.79.52.31.13.61.29.91.44.34.17.68.35,1,.55.51.33,1.05.6,1.58.88.74.38,1.52.65,2.34.83.42.08.84.16,1.26.17.59.01,1.18.03,1.76-.02.5-.04.98-.12,1.46-.24.97-.23,1.88-.63,2.75-1.1.56-.31,1.12-.62,1.68-.92.09-.05.12-.1.12-.19,0-.62,0-1.25,0-1.87"/><path class="cls-2" d="m42.95,43.09c0-.65,0-1.3,0-1.94,0-.08-.02-.1-.1-.06-.49.23-.97.46-1.44.73-.57.33-1.14.65-1.72.94-.47.23-.98.39-1.49.54-.63.18-1.28.27-1.93.28-.92.02-1.82-.07-2.71-.35-.58-.19-1.12-.42-1.66-.71-.5-.26-.98-.57-1.48-.85-.3-.17-.59-.37-.91-.5-.36-.15-.71-.34-1.08-.48-.6-.23-1.22-.4-1.86-.51-.43-.07-.86-.11-1.29-.12-.84-.02-1.67.03-2.49.21-.38.08-.76.18-1.13.31-.29.1-.56.24-.85.35-.27.1-.52.24-.77.37-.53.27-1.01.62-1.55.88-.14.07-.26.16-.4.24-.07.04-.06.09-.06.15v1.94c0,.08,0,.12.11.07.46-.24.92-.47,1.36-.74.09-.05.11-.08.05-.18-.19-.33-.18-.67.03-.99.42-.66,1.46-.71,1.99-.1.28.32.46.68.57,1.07.13.45.18.91.22,1.37l-.09,1.28c-.08.41-.09.53-.21.93-.02.08,0,.09.07.12.54.21,1.1.35,1.68.44.23.03.22.04.28-.17.18-.69.24-1.1.29-1.81.08-1.25-.03-2.47-.62-3.61-.04-.07-.04-.11.06-.11.11,0,.22-.02.34-.03,1.3-.11,2.55.04,3.76.52.81.32,1.56.77,2.3,1.21.71.41,1.42.8,2.18,1.1.84-.31,1.69-.51,2.55-.58.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.11.03.22.07.32.11.12-.05.24-.09.36-.14.29-.12.57-.25.85-.39.18-.09.36-.19.54-.3.48-.28.97-.54,1.46-.81.05-.03.08-.08.08-.13"/><path class="cls-2" d="m42.95,48.34c0-.35,0-.64,0-.92,0-.11,0-.19-.13-.25-.07-.04-.14-.06-.21-.1-.25-.15-.51-.29-.77-.43-.44-.24-.88-.5-1.33-.71-.36-.17-.73-.33-1.1-.47-.04-.01-.07-.03-.11-.04-.07-.02-.13-.05-.2-.07-.18-.06-.36-.11-.54-.15-.01,0-.02,0-.03,0-.61-.15-1.23-.24-1.85-.28-.22-.01-.44-.02-.65-.02-.33,0-.67.01-1,.04-1.2.11-2.32.45-3.39.98-.84.41-1.64.91-2.46,1.35-.04.02-.09.05-.13.07-1.09.59-2.24.97-3.5,1.05-1.55.1-3.01-.18-4.39-.88-.47-.24-.93-.5-1.39-.77-.27-.16-.53-.33-.81-.47-.24-.12-.48-.25-.72-.39-.05-.03-.07-.08-.14-.05-.07.03-.04.08-.04.13,0,.63,0,1.25,0,1.88,0,.1.04.16.12.19.22.09.4.23.61.34.3.16.58.35.88.51.47.27.95.49,1.44.72.48.22.99.39,1.51.51.51.12,1.03.21,1.55.22.55,0,1.11.06,1.67,0,.44-.04.86-.11,1.29-.2.8-.17,1.55-.45,2.28-.82.43-.22.87-.43,1.28-.68.29-.18.59-.35.88-.53.33-.19.67-.37,1.02-.53.51-.24,1.04-.41,1.59-.54.45-.1.9-.15,1.35-.19.47-.04.95-.03,1.42.04.36.05.73.1,1.09.18.67.15,1.31.41,1.92.71.48.23.94.51,1.4.77.31.17.61.35.93.51.2.1.4.21.61.28.06.02.12.02.11-.05-.05-.34,0-.67-.02-.95"/><path class="cls-2" d="m18.04,32.53c.22-.11.44-.2.64-.32.67-.4,1.35-.77,2.02-1.15.34-.2.7-.37,1.06-.52.53-.22,1.07-.39,1.65-.48.47-.07.95-.12,1.43-.14.31-.01.62.03.93.05.27.02.54.05.81.1.67.13,1.31.37,1.94.66.1.05.21.08.3.14.27.18.57.33.85.5.35.2.7.41,1.05.6.34.18.67.38,1.02.54.37.16.74.31,1.12.44.35.12.71.23,1.07.31.46.09.93.16,1.4.16.6,0,1.2.03,1.79-.03.52-.05,1.03-.15,1.53-.28,1.03-.27,1.97-.74,2.89-1.24.42-.23.84-.47,1.26-.7.1-.05.14-.11.14-.21,0-.58,0-1.15,0-1.72q0-.26-.24-.16s-.08.02-.11.04c-.65.35-1.29.7-1.93,1.06-.52.29-1.05.56-1.61.77-.13.05-.26.1-.38.14-.13.04-.27.09-.4.12-.53.15-1.08.23-1.63.27-1.04.07-2.06-.02-3.06-.33-.8-.25-1.54-.62-2.25-1.04-.72-.42-1.43-.85-2.18-1.21-1.45-.69-2.98-.99-4.59-.92-1.08.04-2.13.23-3.14.62-.71.28-1.38.62-2.04,1-.41.24-.82.49-1.22.73-.06.04-.1.07-.1.15,0,.68,0,1.36,0,2.05"/><path class="cls-2" d="m42.95,33.11c0-.13-.04-.14-.15-.09-.42.2-.84.41-1.25.64-.46.26-.92.52-1.4.76-.41.21-.81.4-1.24.57-.69.27-1.4.43-2.14.49-1.09.09-2.16,0-3.21-.32-.34-.1-.65-.24-.97-.38-.27-.12-.54-.26-.8-.4-.37-.2-.73-.41-1.08-.64-.19-.12-.41-.21-.62-.33-.34-.2-.69-.38-1.05-.54-.3-.14-.6-.27-.92-.36-.33-.1-.65-.21-.99-.28-.65-.15-1.3-.21-1.97-.24-.42-.01-.85.01-1.27.05-.69.07-1.37.19-2.02.41-.43.14-.85.3-1.26.5-.26.13-.53.24-.78.38-.2.11-.41.24-.61.36-.33.19-.64.43-1,.58-.12.05-.19.13-.18.28.02.29,0,.59,0,.88,0,.32,0,.65,0,.97,0,.11.03.13.13.08.22-.11.44-.21.65-.33.42-.24.82-.5,1.24-.73.33-.18.66-.36.98-.53.3-.16.61-.3.93-.42.85-.35,1.75-.49,2.67-.52.39-.01.78.02,1.17.05.53.05,1.05.15,1.55.32.73.24,1.42.56,2.07.95.41.25.84.49,1.26.73.2.11.42.2.61.32.28.18.59.31.89.44.35.15.71.27,1.08.37.4.11.81.2,1.22.26.39.05.78.07,1.17.07.65,0,1.3,0,1.93-.1.57-.1,1.13-.22,1.67-.43.31-.12.63-.21.93-.36.37-.19.75-.36,1.11-.58.49-.29,1-.55,1.5-.82.08-.04.11-.09.11-.17,0-.63,0-1.26,0-1.89"/><path class="cls-2" d="m42.95,27.54c0-.61,0-1.22,0-1.83,0-.17-.1-.22-.22-.28-.04-.02-.09-.03-.14-.06-.39-.22-.78-.44-1.18-.66-.39-.21-.77-.45-1.18-.62-.32-.13-.65-.27-.98-.38-.88-.29-1.79-.46-2.72-.51-.65-.03-1.31,0-1.96.08-.97.12-1.88.39-2.75.8-.74.34-1.43.76-2.12,1.16-.25.14-.5.28-.75.42-.63.35-1.3.63-2,.81-.72.19-1.45.25-2.19.23-.35,0-.71-.02-1.05-.07-.75-.12-1.47-.33-2.17-.65-.48-.22-.94-.47-1.4-.73-.65-.37-1.28-.77-1.96-1.09-.1-.05-.14-.06-.14.07,0,.64,0,1.29,0,1.93,0,.09.04.14.11.17.64.31,1.21.73,1.85,1.04.4.2.79.42,1.2.6.88-.33,1.75-.54,2.65-.62.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.14.04.28.09.42.15.12-.05.23-.1.35-.15.87-.39,1.67-.9,2.49-1.37.75-.43,1.53-.8,2.37-1.03.63-.17,1.26-.25,1.91-.27.5-.02.99.02,1.48.09.06,0,.2-.02.11.13-.45.82-.63,1.71-.67,2.62-.05,1.03,0,1.72.26,2.72.03.12.09.14.19.12.58-.1,1.14-.21,1.68-.43.1-.04.13-.08.1-.18-.15-.53-.14-.75-.19-1.29,0-.32,0-.65,0-.97.02-.17.04-.33.06-.5.04-.26.11-.5.2-.74.09-.27.21-.52.38-.74.14-.18.31-.35.54-.45.46-.21,1.02-.14,1.38.16.31.26.51.76.25,1.22-.02.03-.03.06.01.08.08.05.16.12.25.16.32.17.67.3.98.49.04.03.09.06.14.04.06-.03.03-.09.03-.13"/></g></g></g></g><g class="cls-7"><g class="cls-9"><g class="cls-5"><g class="cls-6"><path class="cls-2" d="m66.38,24.69v2.37c-1.16-.97-2.35-1.45-3.59-1.45-1.36,0-2.51.49-3.44,1.47-.94.97-1.41,2.16-1.41,3.57s.47,2.56,1.41,3.52c.94.96,2.09,1.43,3.45,1.43.7,0,1.3-.11,1.79-.34.27-.11.56-.27.85-.46.29-.19.61-.43.93-.7v2.41c-1.15.65-2.35.97-3.61.97-1.89,0-3.51-.66-4.85-1.98-1.33-1.33-2-2.94-2-4.83,0-1.69.56-3.19,1.67-4.52,1.37-1.62,3.15-2.43,5.33-2.43,1.19,0,2.34.32,3.45.97"/><polygon class="cls-2" points="74.79 29.16 80.51 29.16 80.51 23.98 82.51 23.98 82.51 37.23 80.51 37.23 80.51 31.04 74.79 31.04 74.79 37.23 72.79 37.23 72.79 23.98 74.79 23.98 74.79 29.16"/><path class="cls-2" d="m96.99,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><path class="cls-2" d="m110.24,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.02.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><polygon class="cls-2" points="121.85 23.98 121.85 35.35 125.75 35.35 125.75 37.23 119.85 37.23 119.85 23.98 121.85 23.98"/><polygon class="cls-2" points="138.48 25.86 133.16 25.86 133.16 29.04 138.32 29.04 138.32 30.92 133.16 30.92 133.16 35.35 138.48 35.35 138.48 37.23 131.16 37.23 131.16 23.98 138.48 23.98 138.48 25.86"/><path class="cls-2" d="m152.12,25.95l-1.62.96c-.3-.53-.59-.87-.87-1.03-.29-.18-.66-.28-1.11-.28-.55,0-1.02.16-1.38.47-.37.31-.55.7-.55,1.17,0,.65.48,1.17,1.44,1.56l1.32.54c1.08.43,1.86.97,2.36,1.59.5.63.75,1.4.75,2.3,0,1.22-.41,2.23-1.22,3.02-.82.8-1.83,1.2-3.05,1.2-1.15,0-2.1-.34-2.85-1.02-.74-.68-1.2-1.64-1.38-2.88l2.03-.45c.09.78.25,1.32.48,1.61.41.57,1.01.86,1.8.86.62,0,1.14-.21,1.55-.63.41-.42.62-.95.62-1.59,0-.26-.04-.49-.11-.71-.07-.21-.18-.41-.33-.59-.15-.18-.35-.35-.59-.51-.24-.16-.53-.31-.86-.45l-1.28-.53c-1.82-.77-2.72-1.89-2.72-3.37,0-1,.38-1.83,1.14-2.5.76-.68,1.71-1.01,2.84-1.01,1.53,0,2.72.74,3.58,2.23"/><polygon class="cls-2" points="164.43 37.23 167.22 22.98 171.77 33.28 176.49 22.98 178.99 37.23 176.94 37.23 175.66 29.23 171.74 37.84 167.93 29.22 166.5 37.23 164.43 37.23"/><path class="cls-2" d="m187.32,23.98v7.98c0,1.14.19,1.97.56,2.5.55.76,1.34,1.14,2.34,1.14s1.8-.38,2.35-1.14c.37-.51.56-1.34.56-2.5v-7.98h2v8.53c0,1.4-.43,2.55-1.3,3.45-.98,1.01-2.18,1.51-3.61,1.51s-2.62-.5-3.6-1.51c-.87-.9-1.31-2.05-1.31-3.45v-8.53h2Z"/><path class="cls-2" d="m206.32,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.01.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><path class="cls-2" d="m222.45,30.33h5.48v.44c0,1-.12,1.88-.35,2.65-.23.71-.61,1.37-1.16,1.99-1.23,1.38-2.8,2.08-4.7,2.08s-3.45-.67-4.77-2.01c-1.32-1.35-1.98-2.96-1.98-4.84s.67-3.55,2.02-4.89c1.34-1.35,2.98-2.02,4.91-2.02,1.04,0,2,.21,2.9.63.86.42,1.7,1.11,2.53,2.06l-1.43,1.37c-1.09-1.45-2.41-2.17-3.97-2.17-1.4,0-2.58.48-3.53,1.45-.95.95-1.43,2.14-1.43,3.57s.53,2.69,1.59,3.65c.99.89,2.06,1.33,3.22,1.33.98,0,1.87-.33,2.65-1,.78-.67,1.22-1.47,1.31-2.4h-3.31v-1.88Z"/><path class="cls-2" d="m241.14,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><polygon class="cls-2" points="252.82 25.86 252.82 37.23 250.82 37.23 250.82 25.86 247.77 25.86 247.77 23.98 255.86 23.98 255.86 25.86 252.82 25.86"/></g></g></g></g><text x="57" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="8.5" font-style="italic" fill="#1a1a1a" textLength="199" lengthAdjust="spacing">Pisciculture familiale depuis 1898</text></svg>
+  </div>
+  <div class="header-title">Saisie manuelle</div>
+  <div class="header-sub" id="dateDisplay">--</div>
+</div>
+
+<!-- BOUTON LOGOUT -->
+<button class="logout-btn" onclick="logout()" title="Deconnexion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+
+<!-- BOUTON SETTINGS -->
+<button class="settings-btn" onclick="openSettings()" title="Paramètres">&#x2699;</button>
+
+<!-- BOUTON RETOUR -->
+<button class="btn-retour" onclick="showPage('pointage')">&#x2190; Retour au pointage</button>
+
+<!-- DATE -->
+<div class="date-section">
+  <div class="date-label">Date</div>
+  <select class="date-select" id="dateSelect" onchange="setDate(this.value)"></select>
+</div>
+
+<!-- PLAGES -->
+<div class="section-head">
+  <div class="section-title">Plages horaires</div>
+  <div class="section-hint" id="totalHint">--</div>
+</div>
+<div class="plages-wrap" id="plagesList"></div>
+<div style="padding:0 24px">
+  <button class="add-plage-btn" onclick="addPlage()">+ Ajouter une plage</button>
+</div>
+
+<!-- RESUME -->
+<div class="resume-section" id="resumeSection" style="display:none">
+  <div class="resume-card">
+    <div>
+      <div class="resume-label">Total journee</div>
+      <div class="resume-value" id="resumeTotal">--</div>
+    </div>
+    <div class="resume-detail" id="resumeDetail"></div>
+  </div>
+</div>
+
+<!-- ORNEMENT -->
+<div class="ornament">&middot; &middot; &middot;</div>
+
+<!-- CLOTURE SERVEUR -->
+<div class="cloture-wrap">
+  <div class="server-status" id="serverStatus" onclick="testServeur()">
+    <div class="server-dot" id="serverDot"></div>
+    <span id="serverStatusTxt">Serveur non teste</span>
+  </div>
+  <button class="btn-cloture" id="btnCloture" onclick="cloturerJournee()" disabled>
+    Clôturer
+  </button>
+  <div class="cloture-note" id="clotureNote">
+    Se connecte et saisit automatiquement dans Ecollaboratrice
+  </div>
+</div>
+
+<div style="padding:0 24px;margin-top:8px">
+  <button class="btn-reset" id="btnReset" onclick="reinitialiser()">&#x21BA; Reinitialiser la journee</button>
+</div>
+
+<!-- RECAP SEMAINE -->
+<button class="btn-recap" onclick="_recapFrom='main';showPage('recap')">&#x1F4CB; Recap de la semaine</button>
+
+</div><!-- /mainContent -->
+
+<!-- PAGE RECAP SEMAINE -->
+<div id="recapScreen" style="display:none">
+
+<div class="header">
+  <div class="header-logo-wrap">
+    <svg style="width:260px;height:auto;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" viewBox="15 21 243 38"><defs><style>.cls-1r{fill:none;}.cls-1r,.cls-2r{stroke-width:0px;}.cls-3r{clip-path:url(#cr-4);}.cls-4r{clip-path:url(#cr-3);}.cls-5r{clip-path:url(#cr-7);}.cls-6r{clip-path:url(#cr-8);}.cls-7r{clip-path:url(#cr-6);}.cls-8r{clip-path:url(#cr-5);}.cls-9r{isolation:isolate;opacity:.9;}</style><clipPath id="cr-3"><rect class="cls-1r" x="-497.79" y="-256.84" width="841.89" height="595.28"/></clipPath><clipPath id="cr-4"><rect class="cls-1r" x="17.21" y="22.44" width="26" height="28"/></clipPath><clipPath id="cr-5"><rect class="cls-1r" x="18.04" y="23.2" width="24.93" height="27.16"/></clipPath><clipPath id="cr-6"><rect class="cls-1r" x="-497.79" y="-262.85" width="841.89" height="595.28"/></clipPath><clipPath id="cr-7"><rect class="cls-1r" x="55.21" y="22.43" width="201" height="16"/></clipPath><clipPath id="cr-8"><rect class="cls-1r" x="55.92" y="22.98" width="199.93" height="14.86"/></clipPath></defs><g class="cls-4r"><g class="cls-9r"><g class="cls-3r"><g class="cls-8r"><path class="cls-2r" d="m41.23,26.5c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2r" d="m21.21,43.25c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2r" d="m42.95,37.15c0-.12-.03-.15-.15-.09-.36.18-.72.36-1.08.56-.62.35-1.24.68-1.87,1.01-.43.22-.89.4-1.36.55-.52.17-1.06.27-1.61.33-.67.07-1.33.06-1.99-.02-.63-.08-1.25-.24-1.85-.48-.42-.17-.82-.35-1.21-.56-.65-.36-1.29-.73-1.93-1.1-.44-.25-.9-.47-1.38-.66-1.07-.43-2.2-.64-3.36-.66-.61-.01-1.2.03-1.8.11-1.01.14-1.95.47-2.85.9-.82.39-1.59.89-2.38,1.34-.08.05-.1.09-.1.17,0,.64,0,1.29,0,1.93,0,.04-.02.09.04.13.07-.07.17-.11.27-.16.16-.08.34-.14.5-.24.28-.18.58-.34.87-.51.25-.15.51-.28.76-.43.58-.36,1.21-.64,1.86-.87.3-.11.62-.18.94-.24.36-.07.73-.13,1.1-.15.65-.03,1.29-.01,1.93.1.62.11,1.21.29,1.79.52.31.13.61.29.91.44.34.17.68.35,1,.55.51.33,1.05.6,1.58.88.74.38,1.52.65,2.34.83.42.08.84.16,1.26.17.59.01,1.18.03,1.76-.02.5-.04.98-.12,1.46-.24.97-.23,1.88-.63,2.75-1.1.56-.31,1.12-.62,1.68-.92.09-.05.12-.1.12-.19,0-.62,0-1.25,0-1.87"/><path class="cls-2r" d="m42.95,43.09c0-.65,0-1.3,0-1.94,0-.08-.02-.1-.1-.06-.49.23-.97.46-1.44.73-.57.33-1.14.65-1.72.94-.47.23-.98.39-1.49.54-.63.18-1.28.27-1.93.28-.92.02-1.82-.07-2.71-.35-.58-.19-1.12-.42-1.66-.71-.5-.26-.98-.57-1.48-.85-.3-.17-.59-.37-.91-.5-.36-.15-.71-.34-1.08-.48-.6-.23-1.22-.4-1.86-.51-.43-.07-.86-.11-1.29-.12-.84-.02-1.67.03-2.49.21-.38.08-.76.18-1.13.31-.29.1-.56.24-.85.35-.27.1-.52.24-.77.37-.53.27-1.01.62-1.55.88-.14.07-.26.16-.4.24-.07.04-.06.09-.06.15v1.94c0,.08,0,.12.11.07.46-.24.92-.47,1.36-.74.09-.05.11-.08.05-.18-.19-.33-.18-.67.03-.99.42-.66,1.46-.71,1.99-.1.28.32.46.68.57,1.07.13.45.18.91.22,1.37l-.09,1.28c-.08.41-.09.53-.21.93-.02.08,0,.09.07.12.54.21,1.1.35,1.68.44.23.03.22.04.28-.17.18-.69.24-1.1.29-1.81.08-1.25-.03-2.47-.62-3.61-.04-.07-.04-.11.06-.11.11,0,.22-.02.34-.03,1.3-.11,2.55.04,3.76.52.81.32,1.56.77,2.3,1.21.71.41,1.42.8,2.18,1.1.84-.31,1.69-.51,2.55-.58.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.11.03.22.07.32.11.12-.05.24-.09.36-.14.29-.12.57-.25.85-.39.18-.09.36-.19.54-.3.48-.28.97-.54,1.46-.81.05-.03.08-.08.08-.13"/><path class="cls-2r" d="m42.95,48.34c0-.35,0-.64,0-.92,0-.11,0-.19-.13-.25-.07-.04-.14-.06-.21-.1-.25-.15-.51-.29-.77-.43-.44-.24-.88-.5-1.33-.71-.36-.17-.73-.33-1.1-.47-.04-.01-.07-.03-.11-.04-.07-.02-.13-.05-.2-.07-.18-.06-.36-.11-.54-.15-.01,0-.02,0-.03,0-.61-.15-1.23-.24-1.85-.28-.22-.01-.44-.02-.65-.02-.33,0-.67.01-1,.04-1.2.11-2.32.45-3.39.98-.84.41-1.64.91-2.46,1.35-.04.02-.09.05-.13.07-1.09.59-2.24.97-3.5,1.05-1.55.1-3.01-.18-4.39-.88-.47-.24-.93-.5-1.39-.77-.27-.16-.53-.33-.81-.47-.24-.12-.48-.25-.72-.39-.05-.03-.07-.08-.14-.05-.07.03-.04.08-.04.13,0,.63,0,1.25,0,1.88,0,.1.04.16.12.19.22.09.4.23.61.34.3.16.58.35.88.51.47.27.95.49,1.44.72.48.22.99.39,1.51.51.51.12,1.03.21,1.55.22.55,0,1.11.06,1.67,0,.44-.04.86-.11,1.29-.2.8-.17,1.55-.45,2.28-.82.43-.22.87-.43,1.28-.68.29-.18.59-.35.88-.53.33-.19.67-.37,1.02-.53.51-.24,1.04-.41,1.59-.54.45-.1.9-.15,1.35-.19.47-.04.95-.03,1.42.04.36.05.73.1,1.09.18.67.15,1.31.41,1.92.71.48.23.94.51,1.4.77.31.17.61.35.93.51.2.1.4.21.61.28.06.02.12.02.11-.05-.05-.34,0-.67-.02-.95"/><path class="cls-2r" d="m18.04,32.53c.22-.11.44-.2.64-.32.67-.4,1.35-.77,2.02-1.15.34-.2.7-.37,1.06-.52.53-.22,1.07-.39,1.65-.48.47-.07.95-.12,1.43-.14.31-.01.62.03.93.05.27.02.54.05.81.1.67.13,1.31.37,1.94.66.1.05.21.08.3.14.27.18.57.33.85.5.35.2.7.41,1.05.6.34.18.67.38,1.02.54.37.16.74.31,1.12.44.35.12.71.23,1.07.31.46.09.93.16,1.4.16.6,0,1.2.03,1.79-.03.52-.05,1.03-.15,1.53-.28,1.03-.27,1.97-.74,2.89-1.24.42-.23.84-.47,1.26-.7.1-.05.14-.11.14-.21,0-.58,0-1.15,0-1.72q0-.26-.24-.16s-.08.02-.11.04c-.65.35-1.29.7-1.93,1.06-.52.29-1.05.56-1.61.77-.13.05-.26.1-.38.14-.13.04-.27.09-.4.12-.53.15-1.08.23-1.63.27-1.04.07-2.06-.02-3.06-.33-.8-.25-1.54-.62-2.25-1.04-.72-.42-1.43-.85-2.18-1.21-1.45-.69-2.98-.99-4.59-.92-1.08.04-2.13.23-3.14.62-.71.28-1.38.62-2.04,1-.41.24-.82.49-1.22.73-.06.04-.1.07-.1.15,0,.68,0,1.36,0,2.05"/><path class="cls-2r" d="m42.95,33.11c0-.13-.04-.14-.15-.09-.42.2-.84.41-1.25.64-.46.26-.92.52-1.4.76-.41.21-.81.4-1.24.57-.69.27-1.4.43-2.14.49-1.09.09-2.16,0-3.21-.32-.34-.1-.65-.24-.97-.38-.27-.12-.54-.26-.8-.4-.37-.2-.73-.41-1.08-.64-.19-.12-.41-.21-.62-.33-.34-.2-.69-.38-1.05-.54-.3-.14-.6-.27-.92-.36-.33-.1-.65-.21-.99-.28-.65-.15-1.3-.21-1.97-.24-.42-.01-.85.01-1.27.05-.69.07-1.37.19-2.02.41-.43.14-.85.3-1.26.5-.26.13-.53.24-.78.38-.2.11-.41.24-.61.36-.33.19-.64.43-1,.58-.12.05-.19.13-.18.28.02.29,0,.59,0,.88,0,.32,0,.65,0,.97,0,.11.03.13.13.08.22-.11.44-.21.65-.33.42-.24.82-.5,1.24-.73.33-.18.66-.36.98-.53.3-.16.61-.3.93-.42.85-.35,1.75-.49,2.67-.52.39-.01.78.02,1.17.05.53.05,1.05.15,1.55.32.73.24,1.42.56,2.07.95.41.25.84.49,1.26.73.2.11.42.2.61.32.28.18.59.31.89.44.35.15.71.27,1.08.37.4.11.81.2,1.22.26.39.05.78.07,1.17.07.65,0,1.3,0,1.93-.1.57-.1,1.13-.22,1.67-.43.31-.12.63-.21.93-.36.37-.19.75-.36,1.11-.58.49-.29,1-.55,1.5-.82.08-.04.11-.09.11-.17,0-.63,0-1.26,0-1.89"/><path class="cls-2r" d="m42.95,27.54c0-.61,0-1.22,0-1.83,0-.17-.1-.22-.22-.28-.04-.02-.09-.03-.14-.06-.39-.22-.78-.44-1.18-.66-.39-.21-.77-.45-1.18-.62-.32-.13-.65-.27-.98-.38-.88-.29-1.79-.46-2.72-.51-.65-.03-1.31,0-1.96.08-.97.12-1.88.39-2.75.8-.74.34-1.43.76-2.12,1.16-.25.14-.5.28-.75.42-.63.35-1.3.63-2,.81-.72.19-1.45.25-2.19.23-.35,0-.71-.02-1.05-.07-.75-.12-1.47-.33-2.17-.65-.48-.22-.94-.47-1.4-.73-.65-.37-1.28-.77-1.96-1.09-.1-.05-.14-.06-.14.07,0,.64,0,1.29,0,1.93,0,.09.04.14.11.17.64.31,1.21.73,1.85,1.04.4.2.79.42,1.2.6.88-.33,1.75-.54,2.65-.62.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.14.04.28.09.42.15.12-.05.23-.1.35-.15.87-.39,1.67-.9,2.49-1.37.75-.43,1.53-.8,2.37-1.03.63-.17,1.26-.25,1.91-.27.5-.02.99.02,1.48.09.06,0,.2-.02.11.13-.45.82-.63,1.71-.67,2.62-.05,1.03,0,1.72.26,2.72.03.12.09.14.19.12.58-.1,1.14-.21,1.68-.43.1-.04.13-.08.1-.18-.15-.53-.14-.75-.19-1.29,0-.32,0-.65,0-.97.02-.17.04-.33.06-.5.04-.26.11-.5.2-.74.09-.27.21-.52.38-.74.14-.18.31-.35.54-.45.46-.21,1.02-.14,1.38.16.31.26.51.76.25,1.22-.02.03-.03.06.01.08.08.05.16.12.25.16.32.17.67.3.98.49.04.03.09.06.14.04.06-.03.03-.09.03-.13"/></g></g></g></g><g class="cls-7r"><g class="cls-9r"><g class="cls-5r"><g class="cls-6r"><path class="cls-2r" d="m66.38,24.69v2.37c-1.16-.97-2.35-1.45-3.59-1.45-1.36,0-2.51.49-3.44,1.47-.94.97-1.41,2.16-1.41,3.57s.47,2.56,1.41,3.52c.94.96,2.09,1.43,3.45,1.43.7,0,1.3-.11,1.79-.34.27-.11.56-.27.85-.46.29-.19.61-.43.93-.7v2.41c-1.15.65-2.35.97-3.61.97-1.89,0-3.51-.66-4.85-1.98-1.33-1.33-2-2.94-2-4.83,0-1.69.56-3.19,1.67-4.52,1.37-1.62,3.15-2.43,5.33-2.43,1.19,0,2.34.32,3.45.97"/><polygon class="cls-2r" points="74.79 29.16 80.51 29.16 80.51 23.98 82.51 23.98 82.51 37.23 80.51 37.23 80.51 31.04 74.79 31.04 74.79 37.23 72.79 37.23 72.79 23.98 74.79 23.98 74.79 29.16"/><path class="cls-2r" d="m96.99,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><path class="cls-2r" d="m110.24,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.02.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><polygon class="cls-2r" points="121.85 23.98 121.85 35.35 125.75 35.35 125.75 37.23 119.85 37.23 119.85 23.98 121.85 23.98"/><polygon class="cls-2r" points="138.48 25.86 133.16 25.86 133.16 29.04 138.32 29.04 138.32 30.92 133.16 30.92 133.16 35.35 138.48 35.35 138.48 37.23 131.16 37.23 131.16 23.98 138.48 23.98 138.48 25.86"/><path class="cls-2r" d="m152.12,25.95l-1.62.96c-.3-.53-.59-.87-.87-1.03-.29-.18-.66-.28-1.11-.28-.55,0-1.02.16-1.38.47-.37.31-.55.7-.55,1.17,0,.65.48,1.17,1.44,1.56l1.32.54c1.08.43,1.86.97,2.36,1.59.5.63.75,1.4.75,2.3,0,1.22-.41,2.23-1.22,3.02-.82.8-1.83,1.2-3.05,1.2-1.15,0-2.1-.34-2.85-1.02-.74-.68-1.2-1.64-1.38-2.88l2.03-.45c.09.78.25,1.32.48,1.61.41.57,1.01.86,1.8.86.62,0,1.14-.21,1.55-.63.41-.42.62-.95.62-1.59,0-.26-.04-.49-.11-.71-.07-.21-.18-.41-.33-.59-.15-.18-.35-.35-.59-.51-.24-.16-.53-.31-.86-.45l-1.28-.53c-1.82-.77-2.72-1.89-2.72-3.37,0-1,.38-1.83,1.14-2.5.76-.68,1.71-1.01,2.84-1.01,1.53,0,2.72.74,3.58,2.23"/><polygon class="cls-2r" points="164.43 37.23 167.22 22.98 171.77 33.28 176.49 22.98 178.99 37.23 176.94 37.23 175.66 29.23 171.74 37.84 167.93 29.22 166.5 37.23 164.43 37.23"/><path class="cls-2r" d="m187.32,23.98v7.98c0,1.14.19,1.97.56,2.5.55.76,1.34,1.14,2.34,1.14s1.8-.38,2.35-1.14c.37-.51.56-1.34.56-2.5v-7.98h2v8.53c0,1.4-.43,2.55-1.3,3.45-.98,1.01-2.18,1.51-3.61,1.51s-2.62-.5-3.6-1.51c-.87-.9-1.31-2.05-1.31-3.45v-8.53h2Z"/><path class="cls-2r" d="m206.32,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.01.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><path class="cls-2r" d="m222.45,30.33h5.48v.44c0,1-.12,1.88-.35,2.65-.23.71-.61,1.37-1.16,1.99-1.23,1.38-2.8,2.08-4.7,2.08s-3.45-.67-4.77-2.01c-1.32-1.35-1.98-2.96-1.98-4.84s.67-3.55,2.02-4.89c1.34-1.35,2.98-2.02,4.91-2.02,1.04,0,2,.21,2.9.63.86.42,1.7,1.11,2.53,2.06l-1.43,1.37c-1.09-1.45-2.41-2.17-3.97-2.17-1.4,0-2.58.48-3.53,1.45-.95.95-1.43,2.14-1.43,3.57s.53,2.69,1.59,3.65c.99.89,2.06,1.33,3.22,1.33.98,0,1.87-.33,2.65-1,.78-.67,1.22-1.47,1.31-2.4h-3.31v-1.88Z"/><path class="cls-2r" d="m241.14,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><polygon class="cls-2r" points="252.82 25.86 252.82 37.23 250.82 37.23 250.82 25.86 247.77 25.86 247.77 23.98 255.86 23.98 255.86 25.86 252.82 25.86"/></g></g></g></g><text x="57" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="8.5" font-style="italic" fill="#1a1a1a" textLength="199" lengthAdjust="spacing">Pisciculture familiale depuis 1898</text></svg>
+  </div>
+  <div class="header-title">Recap de la semaine</div>
+  <div class="header-sub" id="recapWeekDisplay">--</div>
+</div>
+
+<button class="logout-btn" onclick="logout()" title="Deconnexion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+<button class="settings-btn" onclick="openSettings()" title="Paramètres">&#x2699;</button>
+
+<button class="btn-retour" id="recapBackBtn" onclick="showPage(_recapFrom||'main')">&#x2190; Retour</button>
+
+<div class="recap-week-header">
+  <div class="recap-week-label" id="recapWeekLabel">Semaine --</div>
+  <div class="recap-week-range" id="recapWeekRange">--</div>
+</div>
+
+<div class="recap-days" id="recapDaysList"></div>
+
+<div class="ornament">&middot; &middot; &middot;</div>
+
+<div class="recap-total-section">
+  <div class="recap-total-card">
+    <div>
+      <div class="recap-total-label">Total semaine</div>
+      <div class="recap-total-value" id="recapWeekTotal">--</div>
+    </div>
+    <div class="recap-total-detail" id="recapWeekDetail"></div>
+  </div>
+</div>
+
+<div class="recap-refresh-section">
+  <div class="recap-last-sync" id="recapLastSync"></div>
+  <button class="btn-recap-refresh" id="recapRefreshBtn" onclick="renderRecap(true)">&#x1F504; Actualiser depuis Ecollaboratrice</button>
+</div>
+
+<div style="height:40px"></div>
+
+</div><!-- /recapScreen -->
+
+<!-- TOAST (global) -->
+<div class="toast" id="toast"></div>
+
+<!-- OVERLAY SETTINGS -->
+<div id="settingsOverlay" style="display:none;background:var(--cream);padding:32px 24px 52px;">
+  <div class="sheet-top">
+    <div class="sheet-title">Parametres</div>
+    <button class="sheet-close-btn" onclick="showPage('pointage')">&#x00D7;</button>
+  </div>
+  <div class="field">
+    <label>Connecté en tant que</label>
+    <input type="text" id="sUserDisplay" disabled style="background:var(--cream);color:var(--light);" />
+  </div>
+  <div class="field">
+    <label>URL Ecollaboratrice</label>
+    <input type="url" id="sUrl" placeholder="https://drive.ecollaboratrice.com/..." value="https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026" />
+    <div class="hint">URL de votre page Saisie des temps.</div>
+  </div>
+  <div class="field">
+    <label>URL du serveur</label>
+    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="https://pointage-ecollab-serveur.up.railway.app" />
+    <div class="hint">Adresse de votre serveur de clôture automatique.</div>
+  </div>
+
+  <!-- HORAIRES PAR DEFAUT -->
+  <div class="defaults-section">
+    <div class="defaults-title">Horaires par defaut</div>
+    <div class="hint" style="margin-bottom:14px;">Ces horaires seront pre-remplis pour chaque nouvelle journee.</div>
+    <div id="defaultPlagesList"></div>
+    <button class="btn-add-default" onclick="addDefaultPlage()">+ Ajouter une plage</button>
+  </div>
+
+  <button class="btn-enregistrer" onclick="saveSettings()">Enregistrer</button>
+  <button onclick="showPage('pointage')" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--light);cursor:pointer;">&#x2190; Retour</button>
+  <div style="text-align:center;margin-top:24px;color:var(--light);font-size:12px;letter-spacing:1px;opacity:0.5;">
+    <span id="appVersionLabel">v--</span> &mdash; <a href="#" id="forceUpdateLink" onclick="forceAppUpdate();return false;" style="color:var(--gold);text-decoration:underline;cursor:pointer;">Forcer la mise a jour</a>
+  </div>
+</div>
+
+<script>
+// ======================================
+// STATE
+// ======================================
+let S   = { plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}], cloture:false, date:'', enPoste:false, history:[] };
+let _priseTsMs = null;
+let CFG = { email:'', password:'', url:'', server:'' };
+let DEFAULTS = [{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
+
+function pad(n) { return String(n).padStart(2,'0'); }
+
+// ======================================
+// PERSISTANCE
+// ======================================
+function storKey() { return 'eco_'+(CFG.email?CFG.email+'_':'')+(S.date||todayISO()); }
+function localISO(d) { return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function todayISO() { return localISO(new Date()); }
+
+function save() {
+  S.priseTsMs=_priseTsMs||null;
+  var d=JSON.stringify(S);
+  try{localStorage.setItem(storKey(),d);}catch(e){}
+  try{sessionStorage.setItem(storKey(),d);}catch(e){}
+}
+// Sync state to server (fire-and-forget, non-blocking)
+function syncStateToServer() {
+  if(!CFG.server||!CFG.email) return;
+  var payload={email:CFG.email,state:{plages:S.plages,enPoste:S.enPoste,history:S.history,cloture:S.cloture,date:S.date,priseTsMs:_priseTsMs||null}};
+  fetch(CFG.server+'/save-state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(5000)}).catch(function(){});
+}
+// Load state from server (returns promise)
+function loadStateFromServer() {
+  if(!CFG.server||!CFG.email) return Promise.resolve(null);
+  return fetch(CFG.server+'/load-state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:CFG.email}),signal:AbortSignal.timeout(5000)})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.success&&data.state) return data.state;
+      return null;
+    })
+    .catch(function(){return null;});
+}
+function loadState() {
+  var d=null;
+  try{d=JSON.parse(localStorage.getItem(storKey())||'null');}catch(e){}
+  if(!d)try{d=JSON.parse(sessionStorage.getItem(storKey())||'null');}catch(e){}
+  if(d){ S.plages=d.plages||getDefaultPlages(); S.cloture=d.cloture||false; S.date=d.date||''; S.enPoste=d.enPoste||false; S.history=d.history||[]; S.priseTsMs=d.priseTsMs||null; }
+  if(S.enPoste){ _priseTsMs=S.priseTsMs||Date.now(); }
+}
+// Merge server state if it's more recent (e.g. pointage started on another device)
+function loadStateWithServerSync() {
+  loadState();
+  loadStateFromServer().then(function(remote){
+    if(!remote) return;
+    // Only apply remote state if it's for today and has activity
+    var today=todayISO();
+    if(remote.date!==today) return;
+    // If local has no history but remote does, or remote has enPoste and local doesn't
+    var localHasActivity=S.history&&S.history.length>0;
+    var remoteHasActivity=remote.history&&remote.history.length>0;
+    if(!localHasActivity&&remoteHasActivity){
+      // Remote has data we don't have locally — adopt it
+      S.plages=remote.plages||getDefaultPlages();
+      S.cloture=remote.cloture||false;
+      S.enPoste=remote.enPoste||false;
+      S.history=remote.history||[];
+      S.date=remote.date;
+      _priseTsMs=remote.priseTsMs||null;
+      if(S.enPoste&&!_priseTsMs) _priseTsMs=Date.now();
+      save(); render();
+      toast('Pointage en cours recupere depuis un autre appareil','info');
+    } else if(localHasActivity&&remoteHasActivity&&remote.history.length>S.history.length){
+      // Remote has more events — use it
+      S.plages=remote.plages||getDefaultPlages();
+      S.cloture=remote.cloture||false;
+      S.enPoste=remote.enPoste||false;
+      S.history=remote.history||[];
+      S.date=remote.date;
+      _priseTsMs=remote.priseTsMs||null;
+      if(S.enPoste&&!_priseTsMs) _priseTsMs=Date.now();
+      save(); render();
+      toast('Pointage mis a jour depuis un autre appareil','info');
+    }
+  });
+}
+
+// Synchronisation depuis le serveur (bouton + auto-sync)
+function refreshFromServer() {
+  if(!CFG.server||!CFG.email) return;
+  var btn=document.getElementById('btnSync');
+  if(btn) btn.classList.add('syncing');
+  loadStateFromServer().then(function(remote){
+    if(btn) btn.classList.remove('syncing');
+    if(!remote) return;
+    var today=todayISO();
+    if(remote.date!==today) return;
+    var localCount=(S.history&&S.history.length)||0;
+    var remoteCount=(remote.history&&remote.history.length)||0;
+    if(remoteCount>localCount || (remoteCount>0 && localCount===0)){
+      S.plages=remote.plages||getDefaultPlages();
+      S.cloture=remote.cloture||false;
+      S.enPoste=remote.enPoste||false;
+      S.history=remote.history||[];
+      S.date=remote.date;
+      _priseTsMs=remote.priseTsMs||null;
+      if(S.enPoste&&!_priseTsMs) _priseTsMs=Date.now();
+      save(); render();
+      toast('Pointage synchronise depuis un autre appareil','success');
+    }
+  }).catch(function(){
+    if(btn) btn.classList.remove('syncing');
+  });
+}
+
+// Auto-sync quand l'app redevient visible (changement d'onglet/app)
+document.addEventListener('visibilitychange', function() {
+  if(!document.hidden && CFG.server && CFG.email) refreshFromServer();
+});
+// Auto-sync toutes les 2 minutes
+setInterval(function() {
+  if(!document.hidden && CFG.server && CFG.email) refreshFromServer();
+}, 2 * 60 * 1000);
+
+function loadSettings() {
+  try{
+    var user=localStorage.getItem('eco_current_user')||'';
+    if(user){
+      CFG.email=user;
+      CFG.password=localStorage.getItem('eco_pwd_'+user)||'';
+    }
+    CFG.url=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
+    CFG.server=localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
+    loadDefaults();
+  }catch(e){}
+}
+function saveSettings() {
+  CFG.url=document.getElementById('sUrl').value.trim();
+  CFG.server=document.getElementById('sServer').value.trim().replace(/\/$/,'');
+  try{
+    localStorage.setItem('eco_url',CFG.url);
+    localStorage.setItem('eco_server',CFG.server);
+    saveDefaults();
+  }catch(e){}
+  showPage('pointage');
+  toast('Paramètres enregistrés','success');
+  testServeur();
+}
+
+// ======================================
+// TOAST & NAVIGATION
+// ======================================
+var _toastT=null;
+var _recapFrom='main';
+function toast(msg,type,dur) {
+  type=type||'info'; dur=dur||4000;
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast '+type+' show';
+  if(_toastT)clearTimeout(_toastT);
+  _toastT=setTimeout(function(){el.classList.remove('show');},dur);
+}
+function showPage(p) {
+  var m=document.getElementById('mainContent');
+  var s=document.getElementById('settingsOverlay');
+  var l=document.getElementById('loginScreen');
+  var pt=document.getElementById('pointageScreen');
+  var rc=document.getElementById('recapScreen');
+  if(p==='settings') {
+    m.style.display='none'; s.style.display='block'; l.className='login-screen'; pt.style.display='none'; rc.style.display='none';
+    document.getElementById('sUserDisplay').value=CFG.email;
+    document.getElementById('sUrl').value=CFG.url;
+    document.getElementById('sServer').value=CFG.server;
+    renderDefaultPlages();
+  } else if(p==='login') {
+    m.style.display='none'; s.style.display='none'; pt.style.display='none'; rc.style.display='none'; l.className='login-screen show';
+    document.getElementById('loginServer').value=CFG.server||localStorage.getItem('eco_server')||'';
+  } else if(p==='pointage') {
+    pt.style.display='block'; m.style.display='none'; s.style.display='none'; rc.style.display='none'; l.className='login-screen';
+    renderPointage();
+  } else if(p==='recap') {
+    rc.style.display='block'; pt.style.display='none'; m.style.display='none'; s.style.display='none'; l.className='login-screen';
+    document.getElementById('recapBackBtn').textContent='\u2190 Retour '+ (_recapFrom==='pointage'?'au pointage':'à la saisie');
+    renderRecap();
+  } else {
+    m.style.display='block'; pt.style.display='none'; s.style.display='none'; rc.style.display='none'; l.className='login-screen';
+    render();
+  }
+}
+function openSettings() { showPage('settings'); }
+
+// ======================================
+// DATE
+// ======================================
+function getWeekDays(dateStr) {
+  var d = new Date(dateStr + 'T12:00:00');
+  var day = d.getDay();
+  var diffToMon = (day === 0) ? -6 : 1 - day;
+  var monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMon);
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var dt = new Date(monday);
+    dt.setDate(monday.getDate() + i);
+    days.push(localISO(dt));
+  }
+  return days;
+}
+function getISOWeekNumber(dateStr) {
+  var d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  var yearStart = new Date(d.getFullYear(), 0, 4);
+  yearStart.setDate(yearStart.getDate() + 3 - (yearStart.getDay() + 6) % 7);
+  return 1 + Math.round((d - yearStart) / (7 * 24 * 60 * 60 * 1000));
+}
+function loadDayData(dateStr) {
+  var key = 'eco_' + (CFG.email ? CFG.email + '_' : '') + dateStr;
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); }
+  catch(e) { return null; }
+}
+
+function genDateOptions() {
+  var now = new Date();
+  var yr = now.getFullYear();
+  var mo = now.getMonth();
+  var cur = S.date || todayISO();
+  var daysInMonth = new Date(yr, mo+1, 0).getDate();
+  var jours = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  var opts = '';
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dt = new Date(yr, mo, d);
+    var iso = localISO(dt);
+    var label = jours[dt.getDay()] + ' ' + pad(d) + '/' + pad(mo+1);
+    opts += '<option value="'+iso+'"'+(cur===iso?' selected':'')+'>'+label+'</option>';
+  }
+  return opts;
+}
+
+function setDate(v) {
+  // Save current day first
+  save();
+  // Switch day
+  S.date=v;
+  S.plages=getDefaultPlages();
+  S.cloture=false;
+  // Try to load existing data for that day
+  loadState();
+  render();
+}
+
+function updateDateDisplay() {
+  var d = S.date ? new Date(S.date+'T12:00:00') : new Date();
+  document.getElementById('dateDisplay').textContent =
+    d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+// ======================================
+// TIME OPTIONS (every 15 min)
+// ======================================
+function genTimeOptions(val) {
+  var opts = '<option value="">--:--</option>';
+  for (var i = 0; i < 96; i++) {
+    var h = pad(Math.floor(i*15/60));
+    var m = pad((i*15)%60);
+    var v = h+':'+m;
+    opts += '<option value="'+v+'"'+(val===v?' selected':'')+'>'+v+'</option>';
+  }
+  return opts;
+}
+
+// ======================================
+// PLAGES
+// ======================================
+function addPlage() { S.plages.push({debut:'',fin:''}); render(); save(); }
+function removePlage(i) {
+  S.plages.splice(i,1); render(); save();
+}
+function setField(i,f,v) { S.plages[i][f]=v; render(); save(); }
+
+function renderPlages() {
+  // Date selector
+  var dateEl = document.getElementById('dateSelect');
+  if (dateEl) dateEl.innerHTML = genDateOptions();
+
+  document.getElementById('plagesList').innerHTML=S.plages.map(function(p,i){
+    var label = S.plages.length>1 ? 'Plage '+(i+1) : 'Horaires';
+    var delBtn = i===S.plages.length-1 ? '<button class="plage-del-btn" onclick="removePlage('+i+')">Supprimer</button>' : '';
+    return '<div class="plage-card">'+
+      '<div class="plage-card-head">'+
+        '<span class="plage-label">'+label+'</span>'+
+        delBtn+
+      '</div>'+
+      '<div class="time-row">'+
+        '<span class="time-row-label">Debut</span>'+
+        '<select class="time-select" onchange="setField('+i+',\'debut\',this.value)">'+genTimeOptions(p.debut)+'</select>'+
+      '</div>'+
+      '<div class="time-row">'+
+        '<span class="time-row-label">Fin</span>'+
+        '<select class="time-select" onchange="setField('+i+',\'fin\',this.value)">'+genTimeOptions(p.fin)+'</select>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ======================================
+// RESUME (total heures)
+// ======================================
+function calcTotal() {
+  var totalMin = 0;
+  var details = [];
+  S.plages.forEach(function(p){
+    if(p.debut && p.fin) {
+      var dParts = p.debut.split(':').map(Number);
+      var fParts = p.fin.split(':').map(Number);
+      var dMin = dParts[0]*60 + dParts[1];
+      var fMin = fParts[0]*60 + fParts[1];
+      if(fMin > dMin) {
+        totalMin += (fMin - dMin);
+        details.push(p.debut + ' - ' + p.fin);
+      }
+    }
+  });
+  return { totalMin: totalMin, details: details };
+}
+
+function renderResume() {
+  var r = calcTotal();
+  var section = document.getElementById('resumeSection');
+  if(r.totalMin > 0) {
+    section.style.display = 'block';
+    var h = Math.floor(r.totalMin / 60);
+    var m = r.totalMin % 60;
+    document.getElementById('resumeTotal').textContent = h+'h'+pad(m);
+    document.getElementById('resumeDetail').innerHTML = r.details.join('<br>');
+    document.getElementById('totalHint').textContent = 'Total : '+h+'h'+pad(m);
+  } else {
+    section.style.display = 'none';
+    document.getElementById('totalHint').textContent = '--';
+  }
+}
+
+// ======================================
+// UI
+// ======================================
+function _isJourValideEcollab() {
+  var dateStr = S.date || todayISO();
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + dateStr.slice(0,7);
+  try {
+    var cached = JSON.parse(localStorage.getItem(cacheKey));
+    if (cached && cached[dateStr]) return !!(cached[dateStr].valideSalarie || cached[dateStr].valideEntreprise);
+  } catch(e) {}
+  return false;
+}
+
+function _setCacheValide() {
+  var dateStr = S.date || todayISO();
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + dateStr.slice(0,7);
+  try {
+    var cached = JSON.parse(localStorage.getItem(cacheKey)) || {};
+    if (!cached[dateStr]) cached[dateStr] = { plages: [], travaille: true };
+    cached[dateStr].valideSalarie = true;
+    localStorage.setItem(cacheKey, JSON.stringify(cached));
+  } catch(e) {}
+}
+
+function updateUI() {
+  var ok = S.plages.some(function(p){return p.debut && p.fin;});
+  var dejaValide = _isJourValideEcollab();
+  document.getElementById('btnCloture').disabled = S.cloture || dejaValide;
+  var btnReset = document.getElementById('btnReset');
+  if(btnReset) btnReset.disabled = dejaValide;
+
+  if(dejaValide) {
+    document.getElementById('clotureNote').textContent = 'Journée déjà validée dans Ecollaboratrice';
+    document.getElementById('clotureNote').style.color = 'var(--green)';
+  } else if(S.cloture) {
+    document.getElementById('clotureNote').textContent = 'Journée déjà clôturée';
+    document.getElementById('clotureNote').style.color = 'var(--green)';
+  } else {
+    document.getElementById('clotureNote').textContent = 'Se connecte et saisit automatiquement dans Ecollaboratrice';
+    document.getElementById('clotureNote').style.color = '';
+  }
+}
+
+function render() {
+  renderPlages();
+  renderResume();
+  updateDateDisplay();
+  updateUI();
+}
+
+// ======================================
+// REINITIALISER
+// ======================================
+var _reinitT=0;
+function reinitialiser() {
+  if(Date.now()-_reinitT>3000){_reinitT=Date.now();toast('Appuyez à nouveau pour confirmer','warning');return;}
+  _reinitT=0;
+  S.plages=getDefaultPlages();
+  S.cloture=false;
+  S.enPoste=false;
+  S.history=[];
+  _priseTsMs=null;
+  try{localStorage.removeItem(storKey());}catch(e){}
+  render(); renderPointage();
+  toast('Journée réinitialisée','info');
+}
+
+// ======================================
+// HORLOGE & POINTAGE
+// ======================================
+function tick() {
+  var n=new Date();
+  var el=document.getElementById('clockH');
+  if(el){
+    document.getElementById('clockH').textContent=pad(n.getHours());
+    document.getElementById('clockM').textContent=pad(n.getMinutes());
+    document.getElementById('clockS').textContent=pad(n.getSeconds());
+  }
+  // Date display on pointage page
+  var pdd=document.getElementById('pDateDisplay');
+  if(pdd) pdd.textContent=n.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase();
+  // Timer en poste
+  if(S.enPoste && _priseTsMs) {
+    var d=Math.floor((Date.now()-_priseTsMs)/1000);
+    var h=Math.floor(d/3600);
+    var m=Math.floor((d%3600)/60);
+    var s=d%60;
+    var tv=document.getElementById('timerVal');
+    if(tv) tv.textContent=h+':'+pad(m)+':'+pad(s);
+  }
+}
+setInterval(tick,1000);
+
+function nowHHMM() { var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function arrondiSup(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.ceil((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
+function arrondiInf(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.floor((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
+
+function pointePrise() {
+  var h=nowHHMM();
+  // Premier pointage auto : vider les plages par defaut
+  if(!S.history.length) S.plages=[];
+  S.plages.push({debut:arrondiSup(h),fin:''});
+  S.enPoste=true;
+  _priseTsMs=Date.now();
+  S.history.unshift({type:'prise',time:h,arrondi:arrondiSup(h)});
+  save(); syncStateToServer(); renderPointage();
+  toast('Prise à '+h+' (comptabilisé '+arrondiSup(h)+')','success');
+}
+
+function pointeFin() {
+  var h=nowHHMM();
+  var idx=-1;
+  for(var i=S.plages.length-1;i>=0;i--){if(S.plages[i].debut&&!S.plages[i].fin){idx=i;break;}}
+  if(idx>=0) S.plages[idx].fin=arrondiInf(h);
+  S.enPoste=false;
+  _priseTsMs=null;
+  S.history.unshift({type:'fin',time:h,arrondi:arrondiInf(h)});
+  save(); syncStateToServer(); renderPointage();
+  toast('Fin à '+h+' (comptabilisé '+arrondiInf(h)+')','info');
+}
+
+function calcPointageTotal() {
+  // Reconstituer les plages depuis l'historique prise/fin uniquement
+  var events=S.history.slice().reverse(); // plus ancien en premier
+  var plages=[];var cur=null;
+  for(var i=0;i<events.length;i++){
+    if(events[i].type==='prise') cur={debut:events[i].arrondi};
+    else if(events[i].type==='fin'&&cur){cur.fin=events[i].arrondi;plages.push(cur);cur=null;}
+  }
+  var totalMin=0;var details=[];
+  plages.forEach(function(p){
+    var dMin=parseInt(p.debut.split(':')[0])*60+parseInt(p.debut.split(':')[1]);
+    var fMin=parseInt(p.fin.split(':')[0])*60+parseInt(p.fin.split(':')[1]);
+    if(fMin>dMin){totalMin+=(fMin-dMin);details.push(p.debut+' - '+p.fin);}
+  });
+  return {totalMin:totalMin,details:details};
+}
+
+function renderPointage() {
+  // Statut
+  var band=document.getElementById('statusBand');
+  var sv=document.getElementById('statusValue');
+  var bp=document.getElementById('btnPrise');
+  var bf=document.getElementById('btnFin');
+  if(band){
+    if(S.enPoste){band.className='status-band active';sv.textContent='En poste';}
+    else{band.className='status-band';sv.textContent='Hors poste';}
+  }
+  var dejaValidePt = _isJourValideEcollab();
+  if(bp) bp.disabled=S.enPoste||S.cloture||dejaValidePt;
+  if(bf) bf.disabled=!S.enPoste||S.cloture||dejaValidePt;
+
+  // Cloture button on pointage page
+  var bcp=document.getElementById('btnClotureP');
+  var dejaValideP = _isJourValideEcollab();
+  if(bcp) bcp.disabled=S.cloture||dejaValideP;
+  var brp=document.getElementById('btnResetP');
+  if(brp) brp.disabled=dejaValideP;
+  var cnp=document.getElementById('clotureNoteP');
+  if(cnp) {
+    if(dejaValideP) { cnp.textContent='Journée déjà validée dans Ecollaboratrice'; cnp.style.color='var(--green)'; }
+    else if(S.cloture) { cnp.textContent='Journée déjà clôturée'; cnp.style.color='var(--green)'; }
+    else { cnp.textContent='Se connecte et saisit automatiquement dans Ecollaboratrice'; cnp.style.color=''; }
+  }
+
+  // Resume plages (calcule depuis l'historique, pas depuis S.plages)
+  var r=calcPointageTotal();
+  var pr=document.getElementById('pointageResume');
+  if(pr){
+    if(r.totalMin>0){
+      pr.style.display='block';
+      var h=Math.floor(r.totalMin/60);var m=r.totalMin%60;
+      document.getElementById('pointageTotal').textContent=h+'h'+pad(m);
+      document.getElementById('pointageDetail').innerHTML=r.details.join(' | ');
+    } else { pr.style.display='none'; }
+  }
+
+  // Historique
+  renderHistory();
+}
+
+function renderHistory() {
+  var el=document.getElementById('historyList');
+  if(!el)return;
+  if(!S.history.length){el.innerHTML='<div class="history-empty">Aucun pointage aujourd\'hui</div>';return;}
+  el.innerHTML=S.history.slice(0,12).reverse().map(function(h){
+    var cls=h.type==='prise'?'prise':(h.type==='fin'?'fin':'cloture');
+    var label=h.type==='prise'?'Prise de poste':(h.type==='fin'?'Fin de poste':'Clôture');
+    return '<div class="history-item">'+
+      '<div class="h-dot '+cls+'"></div>'+
+      '<div class="h-text"><div class="h-label">'+label+'</div>'+
+      '<div class="h-sub">Reel : '+h.time+(h.arrondi&&h.arrondi!==h.time?' → Arrondi : '+h.arrondi:'')+'</div></div>'+
+      '<div class="h-time">'+h.arrondi+'</div></div>';
+  }).join('');
+}
+
+// ======================================
+// TEST SERVEUR
+// ======================================
+function setServerUI(cls,msg) {
+  ['','P'].forEach(function(sfx){
+    var d=document.getElementById('serverDot'+sfx);
+    var t=document.getElementById('serverStatusTxt'+sfx);
+    if(d) d.className='server-dot'+(cls?' '+cls:'');
+    if(t) t.textContent=msg;
+  });
+}
+function testServeur() {
+  if(!CFG.server){setServerUI('','Serveur non configure');return;}
+  setServerUI('','Test en cours...');
+  fetch(CFG.server+'/ping',{signal:AbortSignal.timeout(5000)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.status==='ok') setServerUI('ok','Serveur connecte');
+      else setServerUI('err','Serveur erreur');
+    })
+    .catch(function(){
+      setServerUI('err','Serveur inaccessible');
+    });
+}
+
+// ======================================
+// RECAP SEMAINE
+// ======================================
+function renderRecap(forceRefresh) {
+  var currentDate = S.date || todayISO();
+  var weekDays = getWeekDays(currentDate);
+  var today = todayISO();
+  var weekNum = getISOWeekNumber(currentDate);
+  var joursFr = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+
+  var monDate = new Date(weekDays[0] + 'T12:00:00');
+  var sunDate = new Date(weekDays[6] + 'T12:00:00');
+  var rangeStr = pad(monDate.getDate()) + '/' + pad(monDate.getMonth()+1)
+    + ' au ' + pad(sunDate.getDate()) + '/' + pad(sunDate.getMonth()+1) + '/' + sunDate.getFullYear();
+
+  document.getElementById('recapWeekLabel').textContent = 'Semaine ' + weekNum;
+  document.getElementById('recapWeekRange').textContent = rangeStr;
+  document.getElementById('recapWeekDisplay').textContent = rangeStr.toUpperCase();
+
+  // Clé cache pour ce mois
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+  var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+  var cached = null;
+  if (!forceRefresh) {
+    try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+  }
+
+  // Afficher la date du dernier chargement
+  _updateRecapSyncInfo(syncKey);
+
+  var server = CFG.server || localStorage.getItem('eco_server') || '';
+  if (!server || !CFG.email || !CFG.password) {
+    _renderRecapDays(weekDays, today, joursFr, cached);
+    return;
+  }
+
+  // Afficher le cache s'il existe, sinon le loader
+  if (cached) {
+    _renderRecapDays(weekDays, today, joursFr, cached);
+  } else {
+    document.getElementById('recapDaysList').innerHTML =
+      '<div class="recap-loading"><div class="loader-ring"></div><div class="recap-loading-text">Chargement depuis Ecollaboratrice...</div></div>';
+    document.getElementById('recapWeekTotal').textContent = '--';
+    document.getElementById('recapWeekDetail').innerHTML = '';
+  }
+
+  // Désactiver le bouton pendant le chargement
+  var refreshBtn = document.getElementById('recapRefreshBtn');
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '\u23F3 Chargement...'; }
+
+  // Fetch depuis eCollab et mettre à jour le cache
+  fetch(server + '/fetch-week', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      email: CFG.email,
+      password: CFG.password,
+      url: CFG.url,
+      date: currentDate
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.days) {
+      if (data._debug_keys) console.log('[eCollab] Clés jour:', data._debug_keys);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data.days));
+        localStorage.setItem(syncKey, new Date().toISOString());
+      } catch(e) {}
+      _renderRecapDays(weekDays, today, joursFr, data.days);
+      _updateRecapSyncInfo(syncKey);
+    } else if (!cached) {
+      _renderRecapError(data.error || 'Erreur inconnue', weekDays, today, joursFr);
+    }
+  })
+  .catch(function(err) {
+    if (!cached) _renderRecapError('Serveur inaccessible', weekDays, today, joursFr);
+  })
+  .finally(function() {
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '\uD83D\uDD04 Actualiser depuis Ecollaboratrice'; }
+  });
+}
+
+function _updateRecapSyncInfo(syncKey) {
+  var el = document.getElementById('recapLastSync');
+  if (!el) return;
+  var ts = localStorage.getItem(syncKey);
+  if (!ts) { el.textContent = ''; return; }
+  var d = new Date(ts);
+  el.textContent = 'Dernier chargement : ' + pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear()
+    + ' a ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
+  var weekTotalMin = 0, daysWorked = 0;
+  var html = '';
+
+  for (var i = 0; i < 7; i++) {
+    var dateStr = weekDays[i];
+    var isToday = (dateStr === today);
+    var plages = [];
+    var travaille = false;
+
+    var valideSalarie = false;
+    var valideEntreprise = false;
+    if (ecollabDays && ecollabDays[dateStr]) {
+      plages = ecollabDays[dateStr].plages || [];
+      travaille = ecollabDays[dateStr].travaille;
+      valideSalarie = ecollabDays[dateStr].valideSalarie;
+      valideEntreprise = ecollabDays[dateStr].valideEntreprise;
+    }
+
+    var dayTotalMin = 0;
+    var validPlages = plages.filter(function(p) { return p.debut && p.fin; });
+    validPlages.forEach(function(p) {
+      var dP = p.debut.split(':').map(Number);
+      var fP = p.fin.split(':').map(Number);
+      var dMin = dP[0]*60 + dP[1];
+      var fMin = fP[0]*60 + fP[1];
+      if (fMin > dMin) dayTotalMin += (fMin - dMin);
+    });
+
+    weekTotalMin += dayTotalMin;
+    if (dayTotalMin > 0) daysWorked++;
+
+    var dayTotalStr = '';
+    if (dayTotalMin > 0) {
+      dayTotalStr = Math.floor(dayTotalMin/60) + 'h' + pad(dayTotalMin%60);
+    }
+
+    var dt = new Date(dateStr + 'T12:00:00');
+    var dateLabel = joursFr[i] + ' ' + pad(dt.getDate()) + '/' + pad(dt.getMonth()+1);
+
+    var cls = 'recap-day-card';
+    if (travaille) cls += ' cloture';
+    if (!travaille && !isToday) cls += ' empty';
+    if (isToday) cls += ' today';
+
+    var badge = '';
+    if (valideEntreprise) {
+      badge = '<span class="recap-day-badge valide">\u2705 Validée</span>';
+    } else if (valideSalarie) {
+      badge = '<span class="recap-day-badge cloture">\u2705 Validée salarié</span>';
+    } else if (travaille) {
+      badge = '<span class="recap-day-badge cloture">Saisi</span>';
+    }
+
+    html += '<div class="' + cls + '">';
+    html += '<div class="recap-day-head">';
+    html += '<div class="recap-day-name">' + dateLabel + badge + '</div>';
+    html += '<div class="recap-day-total">' + (dayTotalStr || '--') + '</div>';
+    html += '</div>';
+
+    if (validPlages.length > 0) {
+      var plagesStr = validPlages.map(function(p) { return p.debut + ' - ' + p.fin; }).join(' | ');
+      html += '<div class="recap-day-plages">' + plagesStr + '</div>';
+    } else {
+      html += '<div class="recap-day-plages" style="font-style:italic">Aucune saisie</div>';
+    }
+    html += '</div>';
+  }
+
+  document.getElementById('recapDaysList').innerHTML = html;
+
+  var wh = Math.floor(weekTotalMin/60);
+  var wm = weekTotalMin%60;
+  document.getElementById('recapWeekTotal').textContent = weekTotalMin > 0 ? wh + 'h' + pad(wm) : '--';
+  document.getElementById('recapWeekDetail').innerHTML =
+    daysWorked + ' jour' + (daysWorked > 1 ? 's' : '') + ' travaille' + (daysWorked > 1 ? 's' : '');
+}
+
+function _renderRecapError(msg, weekDays, today, joursFr) {
+  document.getElementById('recapDaysList').innerHTML =
+    '<div class="recap-error">' + msg +
+    '<br><button class="recap-error-btn" onclick="renderRecap()">Reessayer</button></div>';
+  toast(msg, 'error');
+}
+
+// ======================================
+// CLOTURE AUTOMATIQUE
+// ======================================
+function setAutoStep(n, state) {
+  var el=document.getElementById('step'+n);
+  var st=document.getElementById('step'+n+'s');
+  el.className='auto-step '+state;
+  st.textContent = state==='active'?'\u23F3': state==='done'?'\u2705': state==='error'?'\u274C':'\u25CB';
+}
+
+var _clotureAbort = null;
+var _clotureStepTimer = null;
+
+function closeAutoOverlay() {
+  document.getElementById('autoOverlay').classList.remove('show');
+}
+
+function cancelCloture() {
+  if(_clotureAbort) _clotureAbort.abort();
+  if(_clotureStepTimer) clearInterval(_clotureStepTimer);
+  closeAutoOverlay();
+  toast('Clôture annulée','info');
+}
+
+function cloturerJournee() {
+  if(!CFG.email||!CFG.password){openSettings();toast('Configurez vos identifiants','error');return;}
+  if(!CFG.url){openSettings();toast('URL Ecollaboratrice manquante','error');return;}
+  if(!CFG.server){openSettings();toast('URL du serveur manquante','error');return;}
+
+  // Bloquer si déjà validé (cache local)
+  if (_isJourValideEcollab()) {
+    toast('Journée déjà validée dans Ecollaboratrice','error');
+    return;
+  }
+
+  var plages=S.plages
+    .filter(function(p){return p.debut&&p.fin;})
+    .map(function(p){return {debut:p.debut,fin:p.fin};});
+
+  var pointageDate = S.date || todayISO();
+
+  // Vérifier en live auprès d'eCollab avant de clôturer
+  _showClotureOverlay(plages, pointageDate);
+}
+
+function _showClotureOverlay(plages, pointageDate) {
+  // Afficher overlay
+  var overlay=document.getElementById('autoOverlay');
+  overlay.classList.add('show');
+  var dateParts=pointageDate.split('-');
+  var dateLabel=dateParts[2]+'/'+dateParts[1]+'/'+dateParts[0];
+  var plagesLabel=plages.length ? plages.map(function(p){return p.debut+' \u2192 '+p.fin;}).join(' | ') : 'Journee vide (non travaillee)';
+  document.getElementById('autoSubtitle').textContent=dateLabel+' \u2014 '+plagesLabel;
+  document.getElementById('autoResult').textContent='';
+  document.getElementById('autoResult').className='auto-result';
+  document.getElementById('autoBtnClose').className='auto-btn-close';
+  var cancelBtn=document.getElementById('autoBtnCancel');
+  cancelBtn.className='auto-btn-cancel show'; cancelBtn.disabled=false;
+  [1,2,3,4].forEach(function(n){setAutoStep(n,'pending');});
+
+  setAutoStep(1,'active');
+  _clotureAbort = new AbortController();
+
+  // Étape 1 : vérifier si le jour est déjà validé via /fetch-week
+  fetch(CFG.server+'/fetch-week', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: pointageDate }),
+    signal: _clotureAbort.signal
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.success && data.days) {
+      // Mettre à jour le cache
+      var ck = 'eco_recap_' + (CFG.email||'') + '_' + pointageDate.slice(0,7);
+      try { localStorage.setItem(ck, JSON.stringify(data.days)); } catch(e) {}
+      var dayInfo = data.days[pointageDate];
+      if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
+        // Jour déjà validé — bloquer
+        setAutoStep(1,'error');
+        document.getElementById('autoBtnCancel').className='auto-btn-cancel';
+        document.getElementById('autoResult').textContent='\u274C Journée déjà validée dans Ecollaboratrice. Clôture impossible.';
+        document.getElementById('autoResult').className='auto-result err';
+        document.getElementById('autoBtnClose').className='auto-btn-close show';
+        _setCacheValide();
+        render();
+        return;
+      }
+    }
+    // Jour non validé — lancer la clôture
+    _lancerCloture(plages, pointageDate, cancelBtn);
+  })
+  .catch(function(e){
+    if (e && e.name==='AbortError') return;
+    // Serveur inaccessible — lancer la clôture quand même (le serveur /cloture vérifiera)
+    _lancerCloture(plages, pointageDate, cancelBtn);
+  });
+}
+
+function _lancerCloture(plages, pointageDate, cancelBtn) {
+  setAutoStep(1,'done');
+  setAutoStep(2,'active');
+  _clotureStepTimer = setInterval(function(){
+    var active=[2,3,4].find(function(n){return document.getElementById('step'+n).className.indexOf('active')!==-1;});
+    if(active&&active<4){
+      setAutoStep(active,'done');setAutoStep(active+1,'active');
+      if(active+1===4){ cancelBtn.disabled=true; }
+    }
+    else clearInterval(_clotureStepTimer);
+  }, 8000);
+
+  fetch(CFG.server+'/cloture', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      email:    CFG.email,
+      password: CFG.password,
+      url:      CFG.url,
+      plages:   plages,
+      date:     pointageDate
+    }),
+    signal: _clotureAbort.signal
+  })
+  .then(function(resp){return resp.json();})
+  .then(function(data){
+    clearInterval(_clotureStepTimer);
+    document.getElementById('autoBtnCancel').className='auto-btn-cancel';
+    if(data.success) {
+      [1,2,3,4].forEach(function(n){setAutoStep(n,'done');});
+      document.getElementById('autoResult').textContent='\u2705 '+data.message;
+      document.getElementById('autoResult').className='auto-result ok';
+      document.getElementById('autoBtnClose').className='auto-btn-close show';
+      S.cloture=true;
+      _setCacheValide();
+      save(); render();
+      toast('Journée clôturée dans Ecollaboratrice','success');
+    } else {
+      var active=[1,2,3,4].find(function(n){return document.getElementById('step'+n).className.indexOf('active')!==-1;})||4;
+      setAutoStep(active,'error');
+      document.getElementById('autoResult').textContent='\u274C '+(data.error||'Erreur inconnue');
+      document.getElementById('autoResult').className='auto-result err';
+      document.getElementById('autoBtnClose').className='auto-btn-close show';
+    }
+  })
+  .catch(function(e){
+    clearInterval(_clotureStepTimer);
+    document.getElementById('autoBtnCancel').className='auto-btn-cancel';
+    if(e&&e.name==='AbortError') return;
+    var active=[1,2,3,4].find(function(n){return document.getElementById('step'+n).className.indexOf('active')!==-1;})||1;
+    setAutoStep(active,'error');
+    document.getElementById('autoResult').textContent='\u274C Serveur inaccessible. Verifiez la connexion.';
+    document.getElementById('autoResult').className='auto-result err';
+    document.getElementById('autoBtnClose').className='auto-btn-close show';
+  });
+}
+
+// ======================================
+// LOGIN / LOGOUT
+// ======================================
+function login() {
+  var email=document.getElementById('loginEmail').value.trim();
+  var password=document.getElementById('loginPassword').value;
+  var errEl=document.getElementById('loginError');
+  var btn=document.getElementById('btnLogin');
+  if(!email||!password){errEl.textContent='Veuillez remplir tous les champs';errEl.className='login-error show';return;}
+
+  btn.disabled=true;btn.textContent='Connexion...';
+  errEl.className='login-error';
+
+  // Sauvegarder l'URL du serveur si modifiee
+  var serverInput=document.getElementById('loginServer').value.trim().replace(/\/$/,'');
+  if(serverInput){
+    CFG.server=serverInput;
+    try{localStorage.setItem('eco_server',serverInput);}catch(e){}
+  }
+
+  // Test login via server
+  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
+  var ecolUrl=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
+
+  fetch(serverUrl+'/test-login',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:email,password:password,url:ecolUrl}),
+    signal:AbortSignal.timeout(60000)
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    btn.disabled=false;btn.textContent='Se connecter';
+    if(data.success){
+      CFG.email=email;
+      CFG.password=password;
+      try{
+        localStorage.setItem('eco_current_user',email);
+        localStorage.setItem('eco_pwd_'+email,password);
+      }catch(e){}
+      loadDefaults();
+      if(!S.date) S.date=todayISO();
+      loadStateWithServerSync();
+      showPage('pointage');
+      testServeur();
+      toast('Connecte en tant que '+email,'success');
+    } else {
+      errEl.textContent=data.error||'Identifiants incorrects';
+      errEl.className='login-error show';
+    }
+  })
+  .catch(function(e){
+    btn.disabled=false;btn.textContent='Se connecter';
+    errEl.textContent='Serveur inaccessible. Verifiez la connexion.';
+    errEl.className='login-error show';
+  });
+}
+
+function logout() {
+  save(); // save current state before logout
+  CFG.email='';
+  CFG.password='';
+  try{localStorage.removeItem('eco_current_user');}catch(e){}
+  S={plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}],cloture:false,date:''};
+  DEFAULTS=[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
+  document.getElementById('loginEmail').value='';
+  document.getElementById('loginPassword').value='';
+  document.getElementById('loginError').className='login-error';
+  showPage('login');
+}
+
+// ======================================
+// DEFAULT HOURS
+// ======================================
+function getDefaultPlages() {
+  return DEFAULTS.map(function(p){return {debut:p.debut,fin:p.fin};});
+}
+function loadDefaults() {
+  if(!CFG.email)return;
+  try{
+    var d=JSON.parse(localStorage.getItem('eco_defaults_'+CFG.email)||'null');
+    if(d&&d.length) DEFAULTS=d;
+  }catch(e){}
+}
+function saveDefaults() {
+  if(!CFG.email)return;
+  try{localStorage.setItem('eco_defaults_'+CFG.email,JSON.stringify(DEFAULTS));}catch(e){}
+}
+
+function renderDefaultPlages() {
+  var el=document.getElementById('defaultPlagesList');
+  if(!el)return;
+  el.innerHTML=DEFAULTS.map(function(p,i){
+    var label=DEFAULTS.length>1?'Plage '+(i+1):'Horaires';
+    var delBtn=i>0?'<button class="plage-del-btn" onclick="removeDefaultPlage('+i+')">Supprimer</button>':'';
+    return '<div class="default-plage">'+
+      '<div class="default-plage-head">'+
+        '<span class="plage-label">'+label+'</span>'+delBtn+
+      '</div>'+
+      '<div class="time-row">'+
+        '<span class="time-row-label">Debut</span>'+
+        '<select class="time-select" onchange="setDefaultField('+i+',\'debut\',this.value)">'+genTimeOptions(p.debut)+'</select>'+
+      '</div>'+
+      '<div class="time-row">'+
+        '<span class="time-row-label">Fin</span>'+
+        '<select class="time-select" onchange="setDefaultField('+i+',\'fin\',this.value)">'+genTimeOptions(p.fin)+'</select>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+function addDefaultPlage() { DEFAULTS.push({debut:'',fin:''}); renderDefaultPlages(); }
+function removeDefaultPlage(i) {
+  if(DEFAULTS.length<=1){toast('Au moins une plage requise','warning');return;}
+  DEFAULTS.splice(i,1); renderDefaultPlages();
+}
+function setDefaultField(i,f,v) { DEFAULTS[i][f]=v; }
+
+// ======================================
+// BACKGROUND RECAP REFRESH
+// ======================================
+function _backgroundRecapRefresh() {
+  var server = CFG.server || localStorage.getItem('eco_server') || '';
+  if (!server || !CFG.email || !CFG.password || !CFG.url) return;
+
+  var currentDate = S.date || todayISO();
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+  var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+
+  fetch(server + '/fetch-week', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      email: CFG.email,
+      password: CFG.password,
+      url: CFG.url,
+      date: currentDate
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.days) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data.days));
+        localStorage.setItem(syncKey, new Date().toISOString());
+      } catch(e) {}
+      // Si le recap est affiché, mettre à jour l'affichage
+      var rc = document.getElementById('recapScreen');
+      if (rc && rc.style.display === 'block') {
+        renderRecap();
+      }
+      // Mettre à jour l'état de validation du jour courant
+      updateUI();
+    }
+  })
+  .catch(function() { /* silencieux */ });
+}
+
+// ======================================
+// FORCE UPDATE
+// ======================================
+function forceAppUpdate() {
+  var link = document.getElementById('forceUpdateLink');
+  if (link) link.textContent = 'Mise a jour en cours...';
+
+  // 1. Synchroniser le state depuis le serveur
+  refreshFromServer();
+
+  // 2. Rafraîchir le recap eCollab en tâche de fond
+  _backgroundRecapRefresh();
+
+  // 3. Forcer la mise à jour du Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(function(reg) {
+      if (reg) {
+        reg.update().then(function() {
+          if (link) link.textContent = 'Mise a jour terminee !';
+          setTimeout(function() {
+            if (link) link.textContent = 'Forcer la mise a jour';
+          }, 3000);
+        }).catch(function() {
+          if (link) link.textContent = 'Forcer la mise a jour';
+        });
+      } else {
+        if (link) link.textContent = 'Forcer la mise a jour';
+      }
+    });
+  } else {
+    if (link) link.textContent = 'Forcer la mise a jour';
+  }
+}
+
+// ======================================
+// INIT
+// ======================================
+function init() {
+  loadSettings();
+  var currentUser=localStorage.getItem('eco_current_user')||'';
+  document.getElementById('loadingCover').style.display='none';
+
+  if(currentUser){
+    // Session active
+    if(!S.date) S.date=todayISO();
+    loadStateWithServerSync();
+    showPage('pointage');
+    testServeur();
+    // Rafraîchir le recap eCollab en tâche de fond à chaque chargement
+    _backgroundRecapRefresh();
+  } else {
+    // Pas de session → login
+    showPage('login');
+  }
+  // --- Service Worker : enregistrement & mise a jour auto ---
+  if ('serviceWorker' in navigator) {
+    // Garde anti-boucle de rechargement
+    var _swReloadKey = 'sw_reload_ts';
+    var _swReloadGuardMs = 3000;
+
+    // Quand un nouveau SW prend le controle → recharger la page
+    var _swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (_swRefreshing) return;
+      var lastReload = parseInt(sessionStorage.getItem(_swReloadKey) || '0', 10);
+      if (Date.now() - lastReload < _swReloadGuardMs) return;
+      _swRefreshing = true;
+      sessionStorage.setItem(_swReloadKey, String(Date.now()));
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('./sw.js').then(function(reg) {
+      // Verifier les mises a jour toutes les 60 minutes
+      setInterval(function() {
+        reg.update().catch(function() {});
+      }, 60 * 60 * 1000);
+
+      // Verifier immediatement quand on revient en ligne
+      window.addEventListener('online', function() {
+        reg.update().catch(function() {});
+      });
+
+      // Demander la version au SW et l'afficher
+      function querySwVersion(sw) {
+        if (!sw) return;
+        var mc = new MessageChannel();
+        mc.port1.onmessage = function(evt) {
+          if (evt.data && evt.data.version) {
+            var el = document.getElementById('appVersionLabel');
+            if (el) el.textContent = 'v' + evt.data.version;
+          }
+        };
+        sw.postMessage({ type: 'GET_VERSION' }, [mc.port2]);
+      }
+      // Utiliser reg.active (disponible meme sans controller)
+      navigator.serviceWorker.ready.then(function(readyReg) {
+        querySwVersion(readyReg.active);
+      });
+    }).catch(function() {});
+  }
+}
+init();
+</script>
+</body>
+</html>

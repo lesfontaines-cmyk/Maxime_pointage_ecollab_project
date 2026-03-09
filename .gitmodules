@@ -1,6 +1,0 @@
-[submodule "Maxime_pointage_ecollab_serveur"]
-	path = Maxime_pointage_ecollab_serveur
-	url = https://github.com/lesfontaines-cmyk/Maxime_pointage_ecollab_serveur.git
-[submodule "Maxime_pointage_ecollab_pwa"]
-	path = Maxime_pointage_ecollab_pwa
-	url = https://github.com/lesfontaines-cmyk/Maxime_pointage_ecollab_pwa.git
