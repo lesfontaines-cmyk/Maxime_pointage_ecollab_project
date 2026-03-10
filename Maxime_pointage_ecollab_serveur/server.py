@@ -168,34 +168,102 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                         }
                     }
                 }
+                // Extraire les variables du jour si disponibles
+                let variables = null;
+                try {
+                    // Chercher dans VariablesJour, Variables, ou ValeurVariable
+                    const varSources = [j.VariablesJour, j.Variables, j.ValeursVariables, j.ListeVariables];
+                    for (const src of varSources) {
+                        if (src && Array.isArray(src) && src.length > 0) {
+                            variables = {};
+                            for (const v of src) {
+                                const lib = (v.Libelle || v.libelle || v.Label || v.Nom || '').toUpperCase();
+                                const val = v.Valeur || v.valeur || v.Value || v.Quantite || 0;
+                                if (lib.indexOf('ASTREINTE') !== -1) variables.astreinte = val;
+                                if (lib.indexOf('ELOIGNEMENT') !== -1) variables.indemniteEloignement = val;
+                            }
+                            break;
+                        }
+                    }
+                } catch(e) {}
+
                 days[dateKey] = {
                     plages: plages,
                     travaille: !!j.EstTravaille,
                     valideSalarie: !!j.ValideeParSalarie,
                     valideEntreprise: !!j.ValideeParEntreprise
                 };
+                if (variables) days[dateKey].variables = variables;
             }
             return {success: true, days: days, _debug_keys: debugKeys};
         """)
 
+        if not result or result.get('error'):
+            driver.quit()
+            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None
+
+        # ── Extraction des données Récapitulatif (optionnel) ──
+        recap_data = None
+        try:
+            # Cliquer sur l'onglet Récapitulatif
+            driver.execute_script("""
+                var tabs = document.querySelectorAll('a, button, .nav-link, [role="tab"]');
+                for (var i = 0; i < tabs.length; i++) {
+                    if (tabs[i].textContent.trim().toLowerCase().indexOf('capitulatif') !== -1) {
+                        tabs[i].click();
+                        break;
+                    }
+                }
+            """)
+            time.sleep(2)
+
+            recap_result = driver.execute_script("""
+                var el = document.getElementById('variable-paie');
+                if (!el || !el.__vue__) return {error: 'NO_VUE_VARIABLE_PAIE'};
+                var vm = el.__vue__;
+                var r = {};
+
+                r.totalHeures = vm.TotalHeures || '0';
+                r.totalHeuresEquivalent = vm.TotalHeuresEquivalent || '0';
+
+                var hf = vm.TotalHeuresJoursFeries || {};
+                r.heuresFeries = {total: hf.totalHeuresFeries || 0, majorees: hf.totalHeuresFeriesMajorees || 0};
+
+                var hn = vm.TotalHeuresHeuresNuit || {};
+                r.heuresNuit = {total: hn.totalHeuresNuit || 0, majorees: hn.totalHeuresNuitMajorees || 0};
+
+                var hd = vm.TotalHeuresHeuresDimanche || {};
+                r.heuresDimanche = {total: hd.totalHeuresDimanche || 0, majorees: hd.totalHeuresDimancheMajorees || 0};
+
+                var detail = vm.RecapitulatifDetailHeuresSuppEquivalentes || [];
+                r.detailParSemaine = detail.map(function(d) {
+                    return {plage: d.plage || '', heuresSupp: d.heuresSupp || 0, heuresSuppEquivalentes: d.heuresSuppEquivalentes || 0};
+                });
+
+                r.success = true;
+                return r;
+            """)
+            if recap_result and recap_result.get('success'):
+                recap_data = recap_result
+                del recap_data['success']
+        except Exception as e_recap:
+            print(f"  [recap] Extraction récap échouée (non bloquant) : {e_recap}")
+
         driver.quit()
 
-        if not result or result.get('error'):
-            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", []
-
-        return True, result.get('days', {}), result.get('_debug_keys', [])
+        return True, result.get('days', {}), result.get('_debug_keys', []), recap_data
 
     except Exception as e:
         if driver:
             try: driver.quit()
             except: pass
-        return False, f"Erreur inattendue : {e}", []
+        return False, f"Erreur inattendue : {e}", [], None
 
 
 # ─── CLÔTURE SELENIUM ────────────────────────────────────────────────────────
-def cloture_selenium(email, password, url, plages, date_str=""):
+def cloture_selenium(email, password, url, plages, date_str="", variables=None):
     """
-    Ouvre Chrome, se connecte à Ecollaboratrice, injecte les horaires, sauvegarde.
+    Ouvre Chrome, se connecte à Ecollaboratrice, injecte les horaires et variables, sauvegarde.
     Retourne (True, "message") ou (False, "erreur")
     """
     from selenium import webdriver
@@ -387,6 +455,139 @@ def cloture_selenium(email, password, url, plages, date_str=""):
 
         time.sleep(2)
 
+        # ── 5b. Injection variables eCollab (ASTREINTE, INDEMNITE ELOIGNEMENT) ──
+        var_result_msg = ""
+        if variables and (variables.get('astreinte', 0) > 0 or variables.get('indemniteEloignement', 0) > 0):
+            astreinte_val = int(variables.get('astreinte', 0))
+            indemnite_val = int(variables.get('indemniteEloignement', 0))
+
+            # Cliquer sur le jour pour ouvrir le détail (saisie-journée)
+            click_result = driver.execute_script(f"""
+                const tM = {target_mois};
+                const tJ = {target_jour};
+
+                // Chercher la ligne du jour dans les composants ligne-horaire
+                var allEls = document.querySelectorAll('*');
+                for (var i = 0; i < allEls.length; i++) {{
+                    try {{
+                        var v = allEls[i].__vue__;
+                        if (v && v.$props && v.$props.jour &&
+                            v.$props.jour.Jour === tJ && v.$props.jour.Mois === tM) {{
+                            // Chercher le lien/bouton cliquable dans la ligne
+                            var clickTarget = allEls[i].querySelector('a, .jour-label, td:first-child, .clickable') || allEls[i];
+                            clickTarget.click();
+                            return 'CLICKED';
+                        }}
+                    }} catch(e) {{}}
+                }}
+                // Fallback: chercher par texte du jour
+                var dayStr = String(tJ);
+                var tds = document.querySelectorAll('td, .day-cell, .jour-cell');
+                for (var j = 0; j < tds.length; j++) {{
+                    if (tds[j].textContent.trim() === dayStr) {{
+                        tds[j].click();
+                        return 'CLICKED_TD';
+                    }}
+                }}
+                return 'ERR_NO_DAY_CLICK';
+            """)
+
+            if click_result and click_result.startswith('CLICKED'):
+                time.sleep(3)  # Attendre ouverture du détail jour
+
+                # Chercher et remplir les champs de variables
+                var_set = driver.execute_script(f"""
+                    var results = [];
+                    var aVal = {astreinte_val};
+                    var iVal = {indemnite_val};
+
+                    // Methode 1: Chercher via le composant Vue saisie-journée
+                    var sjEl = document.getElementById('vue-vdp-saisie-journee');
+                    if (sjEl && sjEl.__vue__) {{
+                        var sjVm = sjEl.__vue__;
+                        // Essayer de modifier les valeurs via Vue data
+                        if (sjVm.valeursVariablesExistantes && sjVm.valeursVariablesExistantes.length) {{
+                            for (var k = 0; k < sjVm.valeursVariablesExistantes.length; k++) {{
+                                var v = sjVm.valeursVariablesExistantes[k];
+                                var label = (sjVm.variablesExistantes && sjVm.variablesExistantes[k])
+                                    ? (sjVm.variablesExistantes[k].Libelle || sjVm.variablesExistantes[k].libelle || '').toUpperCase()
+                                    : '';
+                                if (label.indexOf('ASTREINTE') !== -1 && aVal > 0) {{
+                                    sjVm.$set(sjVm.valeursVariablesExistantes, k, aVal);
+                                    results.push('VUE_ASTREINTE=' + aVal);
+                                }}
+                                if (label.indexOf('ELOIGNEMENT') !== -1 && iVal > 0) {{
+                                    sjVm.$set(sjVm.valeursVariablesExistantes, k, iVal);
+                                    results.push('VUE_INDEMNITE=' + iVal);
+                                }}
+                            }}
+                        }}
+                    }}
+
+                    // Methode 2: Chercher les inputs par label (fallback)
+                    if (results.length === 0) {{
+                        var allLabels = document.querySelectorAll('label, .variable-label, td');
+                        for (var i = 0; i < allLabels.length; i++) {{
+                            var txt = allLabels[i].textContent.trim().toUpperCase();
+                            var parent = allLabels[i].closest('tr, .form-group, .row, .variable-row, div');
+                            if (!parent) continue;
+                            var input = parent.querySelector('input[type="number"], input[type="text"], input');
+                            if (!input) continue;
+
+                            if (txt.indexOf('ASTREINTE') !== -1 && aVal > 0) {{
+                                var nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                                nativeSet.call(input, aVal);
+                                input.dispatchEvent(new Event('input', {{bubbles: true}}));
+                                input.dispatchEvent(new Event('change', {{bubbles: true}}));
+                                results.push('INPUT_ASTREINTE=' + aVal);
+                            }}
+                            if (txt.indexOf('ELOIGNEMENT') !== -1 && iVal > 0) {{
+                                var nativeSet2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                                nativeSet2.call(input, iVal);
+                                input.dispatchEvent(new Event('input', {{bubbles: true}}));
+                                input.dispatchEvent(new Event('change', {{bubbles: true}}));
+                                results.push('INPUT_INDEMNITE=' + iVal);
+                            }}
+                        }}
+                    }}
+
+                    // Sauvegarder dans le modal si possible
+                    if (results.length > 0) {{
+                        var saveBtn = null;
+                        var btns = document.querySelectorAll('button');
+                        for (var b = 0; b < btns.length; b++) {{
+                            var bt = btns[b].textContent.trim().toLowerCase();
+                            if (bt === 'enregistrer' || bt === 'valider' || bt === 'sauvegarder') {{
+                                saveBtn = btns[b]; break;
+                            }}
+                        }}
+                        if (saveBtn) {{
+                            saveBtn.click();
+                            results.push('MODAL_SAVED');
+                        }}
+                    }}
+
+                    return results.length ? results.join(',') : 'NO_VARS_FOUND';
+                """)
+                var_result_msg = f" | Variables: {var_set}"
+
+                time.sleep(2)
+
+                # Revenir à la vue saisie rapide si on est sur une autre page
+                driver.execute_script("""
+                    // Fermer le modal si ouvert (chercher bouton fermer/retour)
+                    var closeBtn = document.querySelector('.close, .btn-close, [aria-label="Close"], .modal .close');
+                    if (closeBtn) closeBtn.click();
+                    // Cliquer sur l'onglet Saisie Rapide si nécessaire
+                    var tabs = document.querySelectorAll('a, button, .nav-link, [role="tab"]');
+                    for (var i = 0; i < tabs.length; i++) {
+                        if (tabs[i].textContent.trim().toLowerCase().indexOf('saisie rapide') !== -1) {
+                            tabs[i].click(); break;
+                        }
+                    }
+                """)
+                time.sleep(2)
+
         # ── 6. Sauvegarder via Vue method ────────────────────────────────────
         save_result = driver.execute_script("""
             // Appeler directement la methode Vue SaveVariablePaie
@@ -424,7 +625,7 @@ def cloture_selenium(email, password, url, plages, date_str=""):
             date_label = f"{parts[2]}/{parts[1]}/{parts[0]}"
         else:
             date_label = "aujourd'hui"
-        return True, f"Cl\u00f4ture r\u00e9ussie ({date_label}) : {resume}"
+        return True, f"Cl\u00f4ture r\u00e9ussie ({date_label}) : {resume}{var_result_msg}"
 
     except Exception as e:
         try:
@@ -655,11 +856,13 @@ def fetch_week():
     if not url:
         return jsonify({"success": False, "error": "URL Ecollaboratrice requise"}), 400
 
-    success, result, debug_keys = fetch_ecollab_days(email, password, url, date_str)
+    success, result, debug_keys, recap = fetch_ecollab_days(email, password, url, date_str)
     if success:
         resp = {"success": True, "days": result}
         if debug_keys:
             resp["_debug_keys"] = debug_keys
+        if recap:
+            resp["recap"] = recap
         return jsonify(resp)
     else:
         return jsonify({"success": False, "error": result}), 500
@@ -683,6 +886,7 @@ def cloture():
     url      = (data.get("url")      or "").strip()
     plages   = data.get("plages", [])
     date_str = (data.get("date") or "").strip()  # date réelle du pointage YYYY-MM-DD
+    variables = data.get("variables", {})  # {astreinte: N, indemniteEloignement: N}
 
     # Validation
     if not email or not password:
@@ -695,7 +899,7 @@ def cloture():
             return jsonify({"success": False, "error": f"Plage incomplète : {p}"}), 400
 
     # Lancer la clôture
-    success, message = cloture_selenium(email, password, url, plages, date_str)
+    success, message = cloture_selenium(email, password, url, plages, date_str, variables)
 
     if success:
         return jsonify({"success": True, "message": message})
