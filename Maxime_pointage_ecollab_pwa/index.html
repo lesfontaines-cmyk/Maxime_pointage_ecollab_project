@@ -465,6 +465,89 @@
     margin-bottom: 14px;
   }
 
+  /* --- VARIABLES --- */
+  .variables-wrap {
+    padding: 0 24px;
+    margin-top: 12px;
+    margin-bottom: 8px;
+  }
+  .variables-toggle {
+    width: 100%;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: background .2s, border-color .2s;
+  }
+  .variables-toggle:hover { border-color: var(--gold-lt); }
+  .variables-toggle-label {
+    font-size: 12px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--light);
+  }
+  .variables-toggle-arrow {
+    font-size: 12px;
+    color: var(--light);
+    transition: transform .2s;
+  }
+  .variables-toggle.open .variables-toggle-arrow { transform: rotate(180deg); }
+  .variables-toggle.has-values .variables-toggle-label { color: var(--gold); }
+  .variables-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height .25s ease;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background: var(--white);
+  }
+  .variables-toggle.open + .variables-body { max-height: 120px; }
+  .variables-toggle.open { border-radius: 4px 4px 0 0; border-bottom: none; }
+  .variables-body-inner {
+    padding: 12px 18px;
+  }
+  .variable-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .variable-row:last-child { margin-bottom: 0; }
+  .variable-label {
+    font-size: 0.85rem;
+    color: var(--mid);
+  }
+  .variable-input {
+    width: 56px;
+    padding: 6px 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 0.9rem;
+    background: var(--white);
+    color: var(--dark);
+    -moz-appearance: number-input;
+  }
+  .variable-input::-webkit-inner-spin-button,
+  .variable-input::-webkit-outer-spin-button {
+    opacity: 0.4;
+  }
+  .variable-input:focus {
+    outline: none;
+    border-color: var(--gold-lt);
+  }
+  .variable-input:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   /* --- BOUTON CLOTURE --- */
   .cloture-wrap { padding: 0 24px; margin-bottom: 6px; }
   .btn-cloture {
@@ -863,6 +946,10 @@
   .recap-day-card.cloture {
     border-left: 3px solid var(--green);
   }
+  .recap-day-card.provisoire {
+    border-left: 3px solid var(--gold-lt);
+    opacity: 0.65;
+  }
   .recap-day-card.empty {
     opacity: 0.55;
   }
@@ -1021,6 +1108,162 @@
   .btn-recap-refresh:hover { border-color: var(--gold-lt); color: var(--gold); }
   .btn-recap-refresh:disabled { opacity: .5; cursor: wait; }
 
+  /* ── Toggle Semaine / Mois ── */
+  .recap-view-toggle {
+    display: flex;
+    margin: 0 24px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .recap-view-btn {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .recap-view-btn.active {
+    background: var(--gold);
+    color: white;
+  }
+
+  /* ── Navigation semaine ── */
+  .recap-week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 0 24px 16px;
+  }
+  .recap-nav-arrow {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 34px; height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--light);
+    font-size: 16px;
+    transition: all .2s;
+  }
+  .recap-nav-arrow:hover {
+    border-color: var(--gold-lt);
+    color: var(--gold);
+  }
+  .recap-nav-center { text-align: center; }
+
+  /* ── Header mois ── */
+  .recap-month-header {
+    text-align: center;
+    padding: 0 24px 16px;
+  }
+  .recap-month-label {
+    font-family: var(--serif);
+    font-size: 20px;
+    color: var(--dark);
+    letter-spacing: .5px;
+    text-transform: capitalize;
+  }
+
+  /* ── Vue mois : groupes semaines ── */
+  .recap-month-week {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin: 0 24px 12px;
+    padding: 14px 18px;
+  }
+  .recap-month-week-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--cream2, #f0e8d8);
+  }
+  .recap-month-week-label {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--dark);
+  }
+  .recap-month-week-total {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--gold);
+  }
+  .recap-month-day-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .recap-month-day-row.empty { opacity: 0.4; }
+  .recap-month-day-row.today { font-weight: 500; }
+  .recap-month-day-name { color: var(--dark); }
+  .recap-month-day-plages { color: var(--light); font-size: 12px; flex: 1; text-align: center; margin: 0 8px; }
+  .recap-month-day-hours {
+    color: var(--gold);
+    font-family: var(--serif);
+    font-size: 15px;
+    min-width: 45px;
+    text-align: right;
+  }
+
+  /* ── Compteurs eCollab ── */
+  .recap-ecollab-section {
+    padding: 0 24px;
+    margin: 16px 0;
+  }
+  .recap-ecollab-title {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .recap-ecollab-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .recap-ecollab-item {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .recap-ecollab-item-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 4px;
+  }
+  .recap-ecollab-item-value {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--dark);
+  }
+  .recap-ecollab-item-sub {
+    font-size: 11px;
+    color: var(--light);
+    margin-top: 2px;
+  }
+
 </style>
 </head>
 <body>
@@ -1049,7 +1292,7 @@
     </div>
     <div class="field">
       <label>URL du serveur</label>
-      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="https://pointage-ecollab-serveur.up.railway.app" />
+      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="http://localhost:5000" />
       <div class="hint">Adresse du serveur de clôture.</div>
     </div>
     <button class="btn-login" id="btnLogin" onclick="login()">Se connecter</button>
@@ -1135,18 +1378,8 @@
   </button>
 </div>
 
-<!-- RESUME PLAGES -->
-<div class="pointage-plages-resume" id="pointageResume" style="display:none">
-  <div class="resume-label">Plages du jour</div>
-  <div class="resume-value" id="pointageTotal">--</div>
-  <div class="resume-detail" id="pointageDetail"></div>
-</div>
-
-<!-- ORNEMENT -->
-<div class="ornament">&middot; &middot; &middot;</div>
-
 <!-- CLOTURE -->
-<div class="cloture-wrap">
+<div class="cloture-wrap" style="margin-top:16px">
   <div class="server-status" onclick="testServeur()">
     <div class="server-dot" id="serverDotP"></div>
     <span id="serverStatusTxtP">Serveur non teste</span>
@@ -1163,6 +1396,36 @@
   <button class="btn-reset" id="btnResetP" onclick="reinitialiser()">&#x21BA; Reinitialiser la journee</button>
 </div>
 
+<!-- RESUME PLAGES -->
+<div class="pointage-plages-resume" id="pointageResume" style="display:none">
+  <div class="resume-label">Plages du jour</div>
+  <div class="resume-value" id="pointageTotal">--</div>
+  <div class="resume-detail" id="pointageDetail"></div>
+</div>
+
+<!-- VARIABLES (POINTAGE) -->
+<div class="variables-wrap" id="variablesSectionP">
+  <button class="variables-toggle" id="varToggleP" type="button" onclick="toggleVariables('varToggleP')">
+    <span class="variables-toggle-label">Variables</span>
+    <span class="variables-toggle-arrow">&#x25BC;</span>
+  </button>
+  <div class="variables-body">
+    <div class="variables-body-inner">
+      <div class="variable-row">
+        <span class="variable-label">Astreinte</span>
+        <input type="number" class="variable-input" id="varAstreinteP" min="0" step="1" value="0" onchange="setVariable('astreinte',this.value)">
+      </div>
+      <div class="variable-row">
+        <span class="variable-label">Ind. eloignement</span>
+        <input type="number" class="variable-input" id="varIndemniteP" min="0" step="1" value="0" onchange="setVariable('indemniteEloignement',this.value)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ORNEMENT -->
+<div class="ornament">&middot; &middot; &middot;</div>
+
 <div style="height:24px"></div>
 
 <!-- HISTORIQUE -->
@@ -1175,7 +1438,7 @@
 
 <button class="btn-saisie-manuelle" onclick="showPage('main')">&#x270E; Saisie manuelle</button>
 
-<button class="btn-recap" onclick="_recapFrom='pointage';showPage('recap')">&#x1F4CB; Recap de la semaine</button>
+<button class="btn-recap" onclick="_recapFrom='pointage';showPage('recap')">&#x1F4CB; Recap</button>
 
 </div><!-- /pointageScreen -->
 
@@ -1208,11 +1471,31 @@
 <!-- PLAGES -->
 <div class="section-head">
   <div class="section-title">Plages horaires</div>
-  <div class="section-hint" id="totalHint">--</div>
+  <div class="section-hint" id="totalHint" style="display:none">--</div>
 </div>
 <div class="plages-wrap" id="plagesList"></div>
 <div style="padding:0 24px">
   <button class="add-plage-btn" onclick="addPlage()">+ Ajouter une plage</button>
+</div>
+
+<!-- VARIABLES -->
+<div class="variables-wrap" id="variablesSection">
+  <button class="variables-toggle" id="varToggle" type="button" onclick="toggleVariables('varToggle')">
+    <span class="variables-toggle-label">Variables</span>
+    <span class="variables-toggle-arrow">&#x25BC;</span>
+  </button>
+  <div class="variables-body">
+    <div class="variables-body-inner">
+      <div class="variable-row">
+        <span class="variable-label">Astreinte</span>
+        <input type="number" class="variable-input" id="varAstreinte" min="0" step="1" value="0" onchange="setVariable('astreinte',this.value)">
+      </div>
+      <div class="variable-row">
+        <span class="variable-label">Ind. eloignement</span>
+        <input type="number" class="variable-input" id="varIndemnite" min="0" step="1" value="0" onchange="setVariable('indemniteEloignement',this.value)">
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- RESUME -->
@@ -1248,7 +1531,7 @@
 </div>
 
 <!-- RECAP SEMAINE -->
-<button class="btn-recap" onclick="_recapFrom='main';showPage('recap')">&#x1F4CB; Recap de la semaine</button>
+<button class="btn-recap" onclick="_recapFrom='main';showPage('recap')">&#x1F4CB; Recap</button>
 
 </div><!-- /mainContent -->
 
@@ -1259,7 +1542,7 @@
   <div class="header-logo-wrap">
     <svg style="width:260px;height:auto;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" viewBox="15 21 243 38"><defs><style>.cls-1r{fill:none;}.cls-1r,.cls-2r{stroke-width:0px;}.cls-3r{clip-path:url(#cr-4);}.cls-4r{clip-path:url(#cr-3);}.cls-5r{clip-path:url(#cr-7);}.cls-6r{clip-path:url(#cr-8);}.cls-7r{clip-path:url(#cr-6);}.cls-8r{clip-path:url(#cr-5);}.cls-9r{isolation:isolate;opacity:.9;}</style><clipPath id="cr-3"><rect class="cls-1r" x="-497.79" y="-256.84" width="841.89" height="595.28"/></clipPath><clipPath id="cr-4"><rect class="cls-1r" x="17.21" y="22.44" width="26" height="28"/></clipPath><clipPath id="cr-5"><rect class="cls-1r" x="18.04" y="23.2" width="24.93" height="27.16"/></clipPath><clipPath id="cr-6"><rect class="cls-1r" x="-497.79" y="-262.85" width="841.89" height="595.28"/></clipPath><clipPath id="cr-7"><rect class="cls-1r" x="55.21" y="22.43" width="201" height="16"/></clipPath><clipPath id="cr-8"><rect class="cls-1r" x="55.92" y="22.98" width="199.93" height="14.86"/></clipPath></defs><g class="cls-4r"><g class="cls-9r"><g class="cls-3r"><g class="cls-8r"><path class="cls-2r" d="m41.23,26.5c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2r" d="m21.21,43.25c0,.37-.3.68-.68.68s-.68-.3-.68-.68.3-.68.68-.68.68.3.68.68"/><path class="cls-2r" d="m42.95,37.15c0-.12-.03-.15-.15-.09-.36.18-.72.36-1.08.56-.62.35-1.24.68-1.87,1.01-.43.22-.89.4-1.36.55-.52.17-1.06.27-1.61.33-.67.07-1.33.06-1.99-.02-.63-.08-1.25-.24-1.85-.48-.42-.17-.82-.35-1.21-.56-.65-.36-1.29-.73-1.93-1.1-.44-.25-.9-.47-1.38-.66-1.07-.43-2.2-.64-3.36-.66-.61-.01-1.2.03-1.8.11-1.01.14-1.95.47-2.85.9-.82.39-1.59.89-2.38,1.34-.08.05-.1.09-.1.17,0,.64,0,1.29,0,1.93,0,.04-.02.09.04.13.07-.07.17-.11.27-.16.16-.08.34-.14.5-.24.28-.18.58-.34.87-.51.25-.15.51-.28.76-.43.58-.36,1.21-.64,1.86-.87.3-.11.62-.18.94-.24.36-.07.73-.13,1.1-.15.65-.03,1.29-.01,1.93.1.62.11,1.21.29,1.79.52.31.13.61.29.91.44.34.17.68.35,1,.55.51.33,1.05.6,1.58.88.74.38,1.52.65,2.34.83.42.08.84.16,1.26.17.59.01,1.18.03,1.76-.02.5-.04.98-.12,1.46-.24.97-.23,1.88-.63,2.75-1.1.56-.31,1.12-.62,1.68-.92.09-.05.12-.1.12-.19,0-.62,0-1.25,0-1.87"/><path class="cls-2r" d="m42.95,43.09c0-.65,0-1.3,0-1.94,0-.08-.02-.1-.1-.06-.49.23-.97.46-1.44.73-.57.33-1.14.65-1.72.94-.47.23-.98.39-1.49.54-.63.18-1.28.27-1.93.28-.92.02-1.82-.07-2.71-.35-.58-.19-1.12-.42-1.66-.71-.5-.26-.98-.57-1.48-.85-.3-.17-.59-.37-.91-.5-.36-.15-.71-.34-1.08-.48-.6-.23-1.22-.4-1.86-.51-.43-.07-.86-.11-1.29-.12-.84-.02-1.67.03-2.49.21-.38.08-.76.18-1.13.31-.29.1-.56.24-.85.35-.27.1-.52.24-.77.37-.53.27-1.01.62-1.55.88-.14.07-.26.16-.4.24-.07.04-.06.09-.06.15v1.94c0,.08,0,.12.11.07.46-.24.92-.47,1.36-.74.09-.05.11-.08.05-.18-.19-.33-.18-.67.03-.99.42-.66,1.46-.71,1.99-.1.28.32.46.68.57,1.07.13.45.18.91.22,1.37l-.09,1.28c-.08.41-.09.53-.21.93-.02.08,0,.09.07.12.54.21,1.1.35,1.68.44.23.03.22.04.28-.17.18-.69.24-1.1.29-1.81.08-1.25-.03-2.47-.62-3.61-.04-.07-.04-.11.06-.11.11,0,.22-.02.34-.03,1.3-.11,2.55.04,3.76.52.81.32,1.56.77,2.3,1.21.71.41,1.42.8,2.18,1.1.84-.31,1.69-.51,2.55-.58.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.11.03.22.07.32.11.12-.05.24-.09.36-.14.29-.12.57-.25.85-.39.18-.09.36-.19.54-.3.48-.28.97-.54,1.46-.81.05-.03.08-.08.08-.13"/><path class="cls-2r" d="m42.95,48.34c0-.35,0-.64,0-.92,0-.11,0-.19-.13-.25-.07-.04-.14-.06-.21-.1-.25-.15-.51-.29-.77-.43-.44-.24-.88-.5-1.33-.71-.36-.17-.73-.33-1.1-.47-.04-.01-.07-.03-.11-.04-.07-.02-.13-.05-.2-.07-.18-.06-.36-.11-.54-.15-.01,0-.02,0-.03,0-.61-.15-1.23-.24-1.85-.28-.22-.01-.44-.02-.65-.02-.33,0-.67.01-1,.04-1.2.11-2.32.45-3.39.98-.84.41-1.64.91-2.46,1.35-.04.02-.09.05-.13.07-1.09.59-2.24.97-3.5,1.05-1.55.1-3.01-.18-4.39-.88-.47-.24-.93-.5-1.39-.77-.27-.16-.53-.33-.81-.47-.24-.12-.48-.25-.72-.39-.05-.03-.07-.08-.14-.05-.07.03-.04.08-.04.13,0,.63,0,1.25,0,1.88,0,.1.04.16.12.19.22.09.4.23.61.34.3.16.58.35.88.51.47.27.95.49,1.44.72.48.22.99.39,1.51.51.51.12,1.03.21,1.55.22.55,0,1.11.06,1.67,0,.44-.04.86-.11,1.29-.2.8-.17,1.55-.45,2.28-.82.43-.22.87-.43,1.28-.68.29-.18.59-.35.88-.53.33-.19.67-.37,1.02-.53.51-.24,1.04-.41,1.59-.54.45-.1.9-.15,1.35-.19.47-.04.95-.03,1.42.04.36.05.73.1,1.09.18.67.15,1.31.41,1.92.71.48.23.94.51,1.4.77.31.17.61.35.93.51.2.1.4.21.61.28.06.02.12.02.11-.05-.05-.34,0-.67-.02-.95"/><path class="cls-2r" d="m18.04,32.53c.22-.11.44-.2.64-.32.67-.4,1.35-.77,2.02-1.15.34-.2.7-.37,1.06-.52.53-.22,1.07-.39,1.65-.48.47-.07.95-.12,1.43-.14.31-.01.62.03.93.05.27.02.54.05.81.1.67.13,1.31.37,1.94.66.1.05.21.08.3.14.27.18.57.33.85.5.35.2.7.41,1.05.6.34.18.67.38,1.02.54.37.16.74.31,1.12.44.35.12.71.23,1.07.31.46.09.93.16,1.4.16.6,0,1.2.03,1.79-.03.52-.05,1.03-.15,1.53-.28,1.03-.27,1.97-.74,2.89-1.24.42-.23.84-.47,1.26-.7.1-.05.14-.11.14-.21,0-.58,0-1.15,0-1.72q0-.26-.24-.16s-.08.02-.11.04c-.65.35-1.29.7-1.93,1.06-.52.29-1.05.56-1.61.77-.13.05-.26.1-.38.14-.13.04-.27.09-.4.12-.53.15-1.08.23-1.63.27-1.04.07-2.06-.02-3.06-.33-.8-.25-1.54-.62-2.25-1.04-.72-.42-1.43-.85-2.18-1.21-1.45-.69-2.98-.99-4.59-.92-1.08.04-2.13.23-3.14.62-.71.28-1.38.62-2.04,1-.41.24-.82.49-1.22.73-.06.04-.1.07-.1.15,0,.68,0,1.36,0,2.05"/><path class="cls-2r" d="m42.95,33.11c0-.13-.04-.14-.15-.09-.42.2-.84.41-1.25.64-.46.26-.92.52-1.4.76-.41.21-.81.4-1.24.57-.69.27-1.4.43-2.14.49-1.09.09-2.16,0-3.21-.32-.34-.1-.65-.24-.97-.38-.27-.12-.54-.26-.8-.4-.37-.2-.73-.41-1.08-.64-.19-.12-.41-.21-.62-.33-.34-.2-.69-.38-1.05-.54-.3-.14-.6-.27-.92-.36-.33-.1-.65-.21-.99-.28-.65-.15-1.3-.21-1.97-.24-.42-.01-.85.01-1.27.05-.69.07-1.37.19-2.02.41-.43.14-.85.3-1.26.5-.26.13-.53.24-.78.38-.2.11-.41.24-.61.36-.33.19-.64.43-1,.58-.12.05-.19.13-.18.28.02.29,0,.59,0,.88,0,.32,0,.65,0,.97,0,.11.03.13.13.08.22-.11.44-.21.65-.33.42-.24.82-.5,1.24-.73.33-.18.66-.36.98-.53.3-.16.61-.3.93-.42.85-.35,1.75-.49,2.67-.52.39-.01.78.02,1.17.05.53.05,1.05.15,1.55.32.73.24,1.42.56,2.07.95.41.25.84.49,1.26.73.2.11.42.2.61.32.28.18.59.31.89.44.35.15.71.27,1.08.37.4.11.81.2,1.22.26.39.05.78.07,1.17.07.65,0,1.3,0,1.93-.1.57-.1,1.13-.22,1.67-.43.31-.12.63-.21.93-.36.37-.19.75-.36,1.11-.58.49-.29,1-.55,1.5-.82.08-.04.11-.09.11-.17,0-.63,0-1.26,0-1.89"/><path class="cls-2r" d="m42.95,27.54c0-.61,0-1.22,0-1.83,0-.17-.1-.22-.22-.28-.04-.02-.09-.03-.14-.06-.39-.22-.78-.44-1.18-.66-.39-.21-.77-.45-1.18-.62-.32-.13-.65-.27-.98-.38-.88-.29-1.79-.46-2.72-.51-.65-.03-1.31,0-1.96.08-.97.12-1.88.39-2.75.8-.74.34-1.43.76-2.12,1.16-.25.14-.5.28-.75.42-.63.35-1.3.63-2,.81-.72.19-1.45.25-2.19.23-.35,0-.71-.02-1.05-.07-.75-.12-1.47-.33-2.17-.65-.48-.22-.94-.47-1.4-.73-.65-.37-1.28-.77-1.96-1.09-.1-.05-.14-.06-.14.07,0,.64,0,1.29,0,1.93,0,.09.04.14.11.17.64.31,1.21.73,1.85,1.04.4.2.79.42,1.2.6.88-.33,1.75-.54,2.65-.62.35-.03.71-.05,1.06-.05.23,0,.46,0,.69.02.91.05,1.8.21,2.63.48.14.04.28.09.42.15.12-.05.23-.1.35-.15.87-.39,1.67-.9,2.49-1.37.75-.43,1.53-.8,2.37-1.03.63-.17,1.26-.25,1.91-.27.5-.02.99.02,1.48.09.06,0,.2-.02.11.13-.45.82-.63,1.71-.67,2.62-.05,1.03,0,1.72.26,2.72.03.12.09.14.19.12.58-.1,1.14-.21,1.68-.43.1-.04.13-.08.1-.18-.15-.53-.14-.75-.19-1.29,0-.32,0-.65,0-.97.02-.17.04-.33.06-.5.04-.26.11-.5.2-.74.09-.27.21-.52.38-.74.14-.18.31-.35.54-.45.46-.21,1.02-.14,1.38.16.31.26.51.76.25,1.22-.02.03-.03.06.01.08.08.05.16.12.25.16.32.17.67.3.98.49.04.03.09.06.14.04.06-.03.03-.09.03-.13"/></g></g></g></g><g class="cls-7r"><g class="cls-9r"><g class="cls-5r"><g class="cls-6r"><path class="cls-2r" d="m66.38,24.69v2.37c-1.16-.97-2.35-1.45-3.59-1.45-1.36,0-2.51.49-3.44,1.47-.94.97-1.41,2.16-1.41,3.57s.47,2.56,1.41,3.52c.94.96,2.09,1.43,3.45,1.43.7,0,1.3-.11,1.79-.34.27-.11.56-.27.85-.46.29-.19.61-.43.93-.7v2.41c-1.15.65-2.35.97-3.61.97-1.89,0-3.51-.66-4.85-1.98-1.33-1.33-2-2.94-2-4.83,0-1.69.56-3.19,1.67-4.52,1.37-1.62,3.15-2.43,5.33-2.43,1.19,0,2.34.32,3.45.97"/><polygon class="cls-2r" points="74.79 29.16 80.51 29.16 80.51 23.98 82.51 23.98 82.51 37.23 80.51 37.23 80.51 31.04 74.79 31.04 74.79 37.23 72.79 37.23 72.79 23.98 74.79 23.98 74.79 29.16"/><path class="cls-2r" d="m96.99,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><path class="cls-2r" d="m110.24,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.02.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><polygon class="cls-2r" points="121.85 23.98 121.85 35.35 125.75 35.35 125.75 37.23 119.85 37.23 119.85 23.98 121.85 23.98"/><polygon class="cls-2r" points="138.48 25.86 133.16 25.86 133.16 29.04 138.32 29.04 138.32 30.92 133.16 30.92 133.16 35.35 138.48 35.35 138.48 37.23 131.16 37.23 131.16 23.98 138.48 23.98 138.48 25.86"/><path class="cls-2r" d="m152.12,25.95l-1.62.96c-.3-.53-.59-.87-.87-1.03-.29-.18-.66-.28-1.11-.28-.55,0-1.02.16-1.38.47-.37.31-.55.7-.55,1.17,0,.65.48,1.17,1.44,1.56l1.32.54c1.08.43,1.86.97,2.36,1.59.5.63.75,1.4.75,2.3,0,1.22-.41,2.23-1.22,3.02-.82.8-1.83,1.2-3.05,1.2-1.15,0-2.1-.34-2.85-1.02-.74-.68-1.2-1.64-1.38-2.88l2.03-.45c.09.78.25,1.32.48,1.61.41.57,1.01.86,1.8.86.62,0,1.14-.21,1.55-.63.41-.42.62-.95.62-1.59,0-.26-.04-.49-.11-.71-.07-.21-.18-.41-.33-.59-.15-.18-.35-.35-.59-.51-.24-.16-.53-.31-.86-.45l-1.28-.53c-1.82-.77-2.72-1.89-2.72-3.37,0-1,.38-1.83,1.14-2.5.76-.68,1.71-1.01,2.84-1.01,1.53,0,2.72.74,3.58,2.23"/><polygon class="cls-2r" points="164.43 37.23 167.22 22.98 171.77 33.28 176.49 22.98 178.99 37.23 176.94 37.23 175.66 29.23 171.74 37.84 167.93 29.22 166.5 37.23 164.43 37.23"/><path class="cls-2r" d="m187.32,23.98v7.98c0,1.14.19,1.97.56,2.5.55.76,1.34,1.14,2.34,1.14s1.8-.38,2.35-1.14c.37-.51.56-1.34.56-2.5v-7.98h2v8.53c0,1.4-.43,2.55-1.3,3.45-.98,1.01-2.18,1.51-3.61,1.51s-2.62-.5-3.6-1.51c-.87-.9-1.31-2.05-1.31-3.45v-8.53h2Z"/><path class="cls-2r" d="m206.32,31.58l4.1,5.65h-2.45l-3.79-5.43h-.36v5.43h-2v-13.26h2.35c1.75,0,3.01.33,3.79.99.86.73,1.29,1.7,1.29,2.9,0,.94-.27,1.75-.81,2.42-.54.67-1.25,1.11-2.13,1.3m-2.49-1.52h.64c1.89,0,2.84-.72,2.84-2.17,0-1.36-.92-2.04-2.77-2.04h-.71v4.21Z"/><path class="cls-2r" d="m222.45,30.33h5.48v.44c0,1-.12,1.88-.35,2.65-.23.71-.61,1.37-1.16,1.99-1.23,1.38-2.8,2.08-4.7,2.08s-3.45-.67-4.77-2.01c-1.32-1.35-1.98-2.96-1.98-4.84s.67-3.55,2.02-4.89c1.34-1.35,2.98-2.02,4.91-2.02,1.04,0,2,.21,2.9.63.86.42,1.7,1.11,2.53,2.06l-1.43,1.37c-1.09-1.45-2.41-2.17-3.97-2.17-1.4,0-2.58.48-3.53,1.45-.95.95-1.43,2.14-1.43,3.57s.53,2.69,1.59,3.65c.99.89,2.06,1.33,3.22,1.33.98,0,1.87-.33,2.65-1,.78-.67,1.22-1.47,1.31-2.4h-3.31v-1.88Z"/><path class="cls-2r" d="m241.14,34.01h-5.67l-1.48,3.22h-2.15l6.56-14.09,6.33,14.09h-2.19l-1.39-3.22Zm-.82-1.88l-1.97-4.51-2.06,4.51h4.03Z"/><polygon class="cls-2r" points="252.82 25.86 252.82 37.23 250.82 37.23 250.82 25.86 247.77 25.86 247.77 23.98 255.86 23.98 255.86 25.86 252.82 25.86"/></g></g></g></g><text x="57" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="8.5" font-style="italic" fill="#1a1a1a" textLength="199" lengthAdjust="spacing">Pisciculture familiale depuis 1898</text></svg>
   </div>
-  <div class="header-title">Recap de la semaine</div>
+  <div class="header-title" id="recapTitle">Recap</div>
   <div class="header-sub" id="recapWeekDisplay">--</div>
 </div>
 
@@ -1268,25 +1551,50 @@
 
 <button class="btn-retour" id="recapBackBtn" onclick="showPage(_recapFrom||'main')">&#x2190; Retour</button>
 
-<div class="recap-week-header">
-  <div class="recap-week-label" id="recapWeekLabel">Semaine --</div>
-  <div class="recap-week-range" id="recapWeekRange">--</div>
+<!-- TOGGLE SEMAINE / MOIS -->
+<div class="recap-view-toggle">
+  <button class="recap-view-btn active" id="recapViewWeek" onclick="setRecapView('week')">Semaine</button>
+  <button class="recap-view-btn" id="recapViewMonth" onclick="setRecapView('month')">Mois</button>
 </div>
 
+<!-- NAVIGATION SEMAINE (visible en vue semaine) -->
+<div class="recap-week-nav" id="recapWeekNav">
+  <button class="recap-nav-arrow" onclick="recapPrevWeek()">&#x2190;</button>
+  <div class="recap-nav-center">
+    <div class="recap-week-label" id="recapWeekLabel">Semaine --</div>
+    <div class="recap-week-range" id="recapWeekRange">--</div>
+  </div>
+  <button class="recap-nav-arrow" onclick="recapNextWeek()">&#x2192;</button>
+</div>
+
+<!-- HEADER MOIS (visible en vue mois) -->
+<div class="recap-month-header" id="recapMonthHeader" style="display:none">
+  <div class="recap-month-label" id="recapMonthLabel">--</div>
+</div>
+
+<!-- CONTENU DYNAMIQUE -->
 <div class="recap-days" id="recapDaysList"></div>
 
 <div class="ornament">&middot; &middot; &middot;</div>
 
+<!-- TOTAL -->
 <div class="recap-total-section">
   <div class="recap-total-card">
     <div>
-      <div class="recap-total-label">Total semaine</div>
+      <div class="recap-total-label" id="recapTotalLabel">Total semaine</div>
       <div class="recap-total-value" id="recapWeekTotal">--</div>
     </div>
     <div class="recap-total-detail" id="recapWeekDetail"></div>
   </div>
 </div>
 
+<!-- COMPTEURS ECOLLAB (visible en vue mois) -->
+<div class="recap-ecollab-section" id="recapEcollabSection" style="display:none">
+  <div class="recap-ecollab-title">Compteurs Ecollaboratrice</div>
+  <div class="recap-ecollab-grid" id="recapEcollabGrid"></div>
+</div>
+
+<!-- REFRESH -->
 <div class="recap-refresh-section">
   <div class="recap-last-sync" id="recapLastSync"></div>
   <button class="btn-recap-refresh" id="recapRefreshBtn" onclick="renderRecap(true)">&#x1F504; Actualiser depuis Ecollaboratrice</button>
@@ -1316,7 +1624,7 @@
   </div>
   <div class="field">
     <label>URL du serveur</label>
-    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="https://pointage-ecollab-serveur.up.railway.app" />
+    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="http://localhost:5000" />
     <div class="hint">Adresse de votre serveur de clôture automatique.</div>
   </div>
 
@@ -1339,7 +1647,7 @@
 // ======================================
 // STATE
 // ======================================
-let S   = { plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}], cloture:false, date:'', enPoste:false, history:[] };
+let S   = { plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}], cloture:false, date:'', enPoste:false, history:[], variables:{astreinte:0,indemniteEloignement:0} };
 let _priseTsMs = null;
 let CFG = { email:'', password:'', url:'', server:'' };
 let DEFAULTS = [{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
@@ -1362,7 +1670,7 @@ function save() {
 // Sync state to server (fire-and-forget, non-blocking)
 function syncStateToServer() {
   if(!CFG.server||!CFG.email) return;
-  var payload={email:CFG.email,state:{plages:S.plages,enPoste:S.enPoste,history:S.history,cloture:S.cloture,date:S.date,priseTsMs:_priseTsMs||null}};
+  var payload={email:CFG.email,state:{plages:S.plages,enPoste:S.enPoste,history:S.history,cloture:S.cloture,date:S.date,priseTsMs:_priseTsMs||null,variables:S.variables||{}}};
   fetch(CFG.server+'/save-state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(5000)}).catch(function(){});
 }
 // Load state from server (returns promise)
@@ -1380,7 +1688,7 @@ function loadState() {
   var d=null;
   try{d=JSON.parse(localStorage.getItem(storKey())||'null');}catch(e){}
   if(!d)try{d=JSON.parse(sessionStorage.getItem(storKey())||'null');}catch(e){}
-  if(d){ S.plages=d.plages||getDefaultPlages(); S.cloture=d.cloture||false; S.date=d.date||''; S.enPoste=d.enPoste||false; S.history=d.history||[]; S.priseTsMs=d.priseTsMs||null; }
+  if(d){ S.plages=d.plages||getDefaultPlages(); S.cloture=d.cloture||false; S.date=d.date||''; S.enPoste=d.enPoste||false; S.history=d.history||[]; S.priseTsMs=d.priseTsMs||null; S.variables=d.variables||{astreinte:0,indemniteEloignement:0}; }
   if(S.enPoste){ _priseTsMs=S.priseTsMs||Date.now(); }
   // Vérifier le cache eCollab : si le jour est déjà validé, bloquer immédiatement
   _applyEcollabCacheBlock();
@@ -1392,6 +1700,13 @@ function _applyEcollabCacheBlock() {
     var cached = JSON.parse(localStorage.getItem(cacheKey));
     if (cached && cached[dateStr]) {
       var dayInfo = cached[dateStr];
+      // Charger les variables eCollab si disponibles
+      if (dayInfo.variables) {
+        S.variables = {
+          astreinte: dayInfo.variables.astreinte || 0,
+          indemniteEloignement: dayInfo.variables.indemniteEloignement || 0
+        };
+      }
       if (dayInfo.valideSalarie || dayInfo.valideEntreprise) {
         // Jour déjà validé dans eCollab — charger les plages et bloquer
         if (dayInfo.plages && dayInfo.plages.length > 0 && (!S.history || S.history.length === 0)) {
@@ -1486,7 +1801,7 @@ function loadSettings() {
       CFG.password=localStorage.getItem('eco_pwd_'+user)||'';
     }
     CFG.url=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
-    CFG.server=localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
+    CFG.server=localStorage.getItem('eco_server')||'http://localhost:5000';
     loadDefaults();
   }catch(e){}
 }
@@ -1508,6 +1823,8 @@ function saveSettings() {
 // ======================================
 var _toastT=null;
 var _recapFrom='main';
+var _recapView='week';
+var _recapWeekOffset=0;
 function toast(msg,type,dur) {
   type=type||'info'; dur=dur||4000;
   var el=document.getElementById('toast');
@@ -1534,8 +1851,15 @@ function showPage(p) {
     pt.style.display='block'; m.style.display='none'; s.style.display='none'; rc.style.display='none'; l.className='login-screen';
     renderPointage();
   } else if(p==='recap') {
+    _recapWeekOffset = 0;
     rc.style.display='block'; pt.style.display='none'; m.style.display='none'; s.style.display='none'; l.className='login-screen';
     document.getElementById('recapBackBtn').textContent='\u2190 Retour '+ (_recapFrom==='pointage'?'au pointage':'à la saisie');
+    // Reset toggle UI
+    document.getElementById('recapViewWeek').className = 'recap-view-btn' + (_recapView === 'week' ? ' active' : '');
+    document.getElementById('recapViewMonth').className = 'recap-view-btn' + (_recapView === 'month' ? ' active' : '');
+    document.getElementById('recapWeekNav').style.display = (_recapView === 'week') ? 'flex' : 'none';
+    document.getElementById('recapMonthHeader').style.display = (_recapView === 'month') ? 'block' : 'none';
+    document.getElementById('recapEcollabSection').style.display = (_recapView === 'month') ? 'block' : 'none';
     renderRecap();
   } else {
     m.style.display='block'; pt.style.display='none'; s.style.display='none'; rc.style.display='none'; l.className='login-screen';
@@ -1703,6 +2027,44 @@ function renderResume() {
 }
 
 // ======================================
+// VARIABLES ECOLLAB
+// ======================================
+function toggleVariables(btnId) {
+  var btn = document.getElementById(btnId);
+  if (btn) btn.classList.toggle('open');
+}
+
+function setVariable(key, val) {
+  if (!S.variables) S.variables = {astreinte:0, indemniteEloignement:0};
+  S.variables[key] = parseInt(val) || 0;
+  save();
+  renderVariables();
+}
+
+function renderVariables() {
+  if (!S.variables) S.variables = {astreinte:0, indemniteEloignement:0};
+  var dejaValide = _isJourValideEcollab();
+  var dis = dejaValide || S.cloture;
+  var hasVals = (S.variables.astreinte > 0 || S.variables.indemniteEloignement > 0);
+
+  // Saisie manuelle page
+  var va = document.getElementById('varAstreinte');
+  var vi = document.getElementById('varIndemnite');
+  if (va) { va.value = S.variables.astreinte || 0; va.disabled = dis; }
+  if (vi) { vi.value = S.variables.indemniteEloignement || 0; vi.disabled = dis; }
+  var t = document.getElementById('varToggle');
+  if (t) { t.classList.toggle('has-values', hasVals); }
+
+  // Pointage page
+  var vap = document.getElementById('varAstreinteP');
+  var vip = document.getElementById('varIndemniteP');
+  if (vap) { vap.value = S.variables.astreinte || 0; vap.disabled = dis; }
+  if (vip) { vip.value = S.variables.indemniteEloignement || 0; vip.disabled = dis; }
+  var tp = document.getElementById('varToggleP');
+  if (tp) { tp.classList.toggle('has-values', hasVals); }
+}
+
+// ======================================
 // UI
 // ======================================
 function _isJourValideEcollab() {
@@ -1748,6 +2110,7 @@ function updateUI() {
 function render() {
   renderPlages();
   renderResume();
+  renderVariables();
   updateDateDisplay();
   updateUI();
 }
@@ -1763,6 +2126,7 @@ function reinitialiser() {
   S.cloture=false;
   S.enPoste=false;
   S.history=[];
+  S.variables={astreinte:0,indemniteEloignement:0};
   _priseTsMs=null;
   try{localStorage.removeItem(storKey());}catch(e){}
   render(); renderPointage();
@@ -1879,6 +2243,9 @@ function renderPointage() {
     } else { pr.style.display='none'; }
   }
 
+  // Variables
+  renderVariables();
+
   // Historique
   renderHistory();
 }
@@ -1924,23 +2291,27 @@ function testServeur() {
 }
 
 // ======================================
-// RECAP SEMAINE
+// RECAP SEMAINE / MOIS
 // ======================================
+var _moisFr = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
+
+function setRecapView(view) {
+  _recapView = view;
+  _recapWeekOffset = 0;
+  document.getElementById('recapViewWeek').className = 'recap-view-btn' + (view === 'week' ? ' active' : '');
+  document.getElementById('recapViewMonth').className = 'recap-view-btn' + (view === 'month' ? ' active' : '');
+  document.getElementById('recapWeekNav').style.display = (view === 'week') ? 'flex' : 'none';
+  document.getElementById('recapMonthHeader').style.display = (view === 'month') ? 'block' : 'none';
+  document.getElementById('recapEcollabSection').style.display = (view === 'month') ? 'block' : 'none';
+  document.getElementById('recapTitle').textContent = (view === 'week') ? 'Recap de la semaine' : 'Recap du mois';
+  renderRecapContent();
+}
+
+function recapPrevWeek() { _recapWeekOffset--; renderRecapContent(); }
+function recapNextWeek() { _recapWeekOffset++; renderRecapContent(); }
+
 function renderRecap(forceRefresh) {
   var currentDate = S.date || todayISO();
-  var weekDays = getWeekDays(currentDate);
-  var today = todayISO();
-  var weekNum = getISOWeekNumber(currentDate);
-  var joursFr = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
-
-  var monDate = new Date(weekDays[0] + 'T12:00:00');
-  var sunDate = new Date(weekDays[6] + 'T12:00:00');
-  var rangeStr = pad(monDate.getDate()) + '/' + pad(monDate.getMonth()+1)
-    + ' au ' + pad(sunDate.getDate()) + '/' + pad(sunDate.getMonth()+1) + '/' + sunDate.getFullYear();
-
-  document.getElementById('recapWeekLabel').textContent = 'Semaine ' + weekNum;
-  document.getElementById('recapWeekRange').textContent = rangeStr;
-  document.getElementById('recapWeekDisplay').textContent = rangeStr.toUpperCase();
 
   // Clé cache pour ce mois
   var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
@@ -1950,18 +2321,17 @@ function renderRecap(forceRefresh) {
     try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
   }
 
-  // Afficher la date du dernier chargement
   _updateRecapSyncInfo(syncKey);
 
   var server = CFG.server || localStorage.getItem('eco_server') || '';
   if (!server || !CFG.email || !CFG.password) {
-    _renderRecapDays(weekDays, today, joursFr, cached);
+    renderRecapContent();
     return;
   }
 
   // Afficher le cache s'il existe, sinon le loader
   if (cached) {
-    _renderRecapDays(weekDays, today, joursFr, cached);
+    renderRecapContent();
   } else {
     document.getElementById('recapDaysList').innerHTML =
       '<div class="recap-loading"><div class="loader-ring"></div><div class="recap-loading-text">Chargement depuis Ecollaboratrice...</div></div>';
@@ -1969,11 +2339,9 @@ function renderRecap(forceRefresh) {
     document.getElementById('recapWeekDetail').innerHTML = '';
   }
 
-  // Désactiver le bouton pendant le chargement
   var refreshBtn = document.getElementById('recapRefreshBtn');
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '\u23F3 Chargement...'; }
 
-  // Fetch depuis eCollab et mettre à jour le cache
   fetch(server + '/fetch-week', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -1992,18 +2360,65 @@ function renderRecap(forceRefresh) {
         localStorage.setItem(cacheKey, JSON.stringify(data.days));
         localStorage.setItem(syncKey, new Date().toISOString());
       } catch(e) {}
-      _renderRecapDays(weekDays, today, joursFr, data.days);
+      // Stocker les données récap eCollab si présentes
+      if (data.recap) {
+        try {
+          var recapCacheKey = 'eco_recap_data_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+          localStorage.setItem(recapCacheKey, JSON.stringify(data.recap));
+        } catch(e) {}
+      }
+      renderRecapContent();
       _updateRecapSyncInfo(syncKey);
     } else if (!cached) {
-      _renderRecapError(data.error || 'Erreur inconnue', weekDays, today, joursFr);
+      _renderRecapError(data.error || 'Erreur inconnue');
     }
   })
   .catch(function(err) {
-    if (!cached) _renderRecapError('Serveur inaccessible', weekDays, today, joursFr);
+    if (!cached) _renderRecapError('Serveur inaccessible');
   })
   .finally(function() {
     if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '\uD83D\uDD04 Actualiser depuis Ecollaboratrice'; }
   });
+}
+
+function renderRecapContent() {
+  var currentDate = S.date || todayISO();
+  var today = todayISO();
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+  var cached = null;
+  try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+
+  if (_recapView === 'week') {
+    // Appliquer l'offset semaine
+    var baseDate = new Date(currentDate + 'T12:00:00');
+    baseDate.setDate(baseDate.getDate() + (_recapWeekOffset * 7));
+    var targetDate = localISO(baseDate);
+    var weekDays = getWeekDays(targetDate);
+    var weekNum = getISOWeekNumber(targetDate);
+    var joursFr = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+
+    var monDate = new Date(weekDays[0] + 'T12:00:00');
+    var sunDate = new Date(weekDays[6] + 'T12:00:00');
+    var rangeStr = pad(monDate.getDate()) + '/' + pad(monDate.getMonth()+1)
+      + ' au ' + pad(sunDate.getDate()) + '/' + pad(sunDate.getMonth()+1);
+
+    document.getElementById('recapWeekLabel').textContent = 'Semaine ' + weekNum;
+    document.getElementById('recapWeekRange').textContent = rangeStr;
+    document.getElementById('recapWeekDisplay').textContent = rangeStr.toUpperCase();
+    document.getElementById('recapTotalLabel').textContent = 'Total semaine';
+
+    _renderRecapDays(weekDays, today, joursFr, cached);
+  } else {
+    // Vue mois
+    var year = parseInt(currentDate.slice(0,4));
+    var month = parseInt(currentDate.slice(5,7));
+    document.getElementById('recapMonthLabel').textContent = _moisFr[month-1] + ' ' + year;
+    document.getElementById('recapWeekDisplay').textContent = (_moisFr[month-1] + ' ' + year).toUpperCase();
+    document.getElementById('recapTotalLabel').textContent = 'Total mois';
+
+    _renderRecapMonth(year, month, today, cached);
+    _renderEcollabRecap();
+  }
 }
 
 function _updateRecapSyncInfo(syncKey) {
@@ -2016,6 +2431,23 @@ function _updateRecapSyncInfo(syncKey) {
     + ' a ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
+function _calcDayMinutes(plages) {
+  var total = 0;
+  if (!plages) return 0;
+  plages.filter(function(p) { return p.debut && p.fin; }).forEach(function(p) {
+    var dP = p.debut.split(':').map(Number);
+    var fP = p.fin.split(':').map(Number);
+    var dMin = dP[0]*60 + dP[1];
+    var fMin = fP[0]*60 + fP[1];
+    if (fMin > dMin) total += (fMin - dMin);
+  });
+  return total;
+}
+
+function _fmtMinutes(min) {
+  return min > 0 ? Math.floor(min/60) + 'h' + pad(min%60) : '--';
+}
+
 function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
   var weekTotalMin = 0, daysWorked = 0;
   var html = '';
@@ -2025,9 +2457,9 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
     var isToday = (dateStr === today);
     var plages = [];
     var travaille = false;
-
     var valideSalarie = false;
     var valideEntreprise = false;
+
     if (ecollabDays && ecollabDays[dateStr]) {
       plages = ecollabDays[dateStr].plages || [];
       travaille = ecollabDays[dateStr].travaille;
@@ -2035,37 +2467,29 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
       valideEntreprise = ecollabDays[dateStr].valideEntreprise;
     }
 
-    var dayTotalMin = 0;
-    var validPlages = plages.filter(function(p) { return p.debut && p.fin; });
-    validPlages.forEach(function(p) {
-      var dP = p.debut.split(':').map(Number);
-      var fP = p.fin.split(':').map(Number);
-      var dMin = dP[0]*60 + dP[1];
-      var fMin = fP[0]*60 + fP[1];
-      if (fMin > dMin) dayTotalMin += (fMin - dMin);
-    });
-
+    var dayTotalMin = _calcDayMinutes(plages);
     weekTotalMin += dayTotalMin;
     if (dayTotalMin > 0) daysWorked++;
-
-    var dayTotalStr = '';
-    if (dayTotalMin > 0) {
-      dayTotalStr = Math.floor(dayTotalMin/60) + 'h' + pad(dayTotalMin%60);
-    }
 
     var dt = new Date(dateStr + 'T12:00:00');
     var dateLabel = joursFr[i] + ' ' + pad(dt.getDate()) + '/' + pad(dt.getMonth()+1);
 
+    var isFuture = dateStr > today;
+    var isProvisoire = travaille && isFuture && !valideSalarie && !valideEntreprise;
+
     var cls = 'recap-day-card';
-    if (travaille) cls += ' cloture';
+    if (isProvisoire) cls += ' provisoire';
+    else if (travaille) cls += ' cloture';
     if (!travaille && !isToday) cls += ' empty';
     if (isToday) cls += ' today';
 
     var badge = '';
     if (valideEntreprise) {
-      badge = '<span class="recap-day-badge valide">\u2705 Validée</span>';
+      badge = '<span class="recap-day-badge valide">\u2705 Validee</span>';
     } else if (valideSalarie) {
-      badge = '<span class="recap-day-badge cloture">\u2705 Validée salarié</span>';
+      badge = '<span class="recap-day-badge cloture">\u2705 Validee salarie</span>';
+    } else if (isProvisoire) {
+      badge = '<span class="recap-day-badge cloture">Provisoire</span>';
     } else if (travaille) {
       badge = '<span class="recap-day-badge cloture">Saisi</span>';
     }
@@ -2073,9 +2497,10 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
     html += '<div class="' + cls + '">';
     html += '<div class="recap-day-head">';
     html += '<div class="recap-day-name">' + dateLabel + badge + '</div>';
-    html += '<div class="recap-day-total">' + (dayTotalStr || '--') + '</div>';
+    html += '<div class="recap-day-total">' + _fmtMinutes(dayTotalMin) + '</div>';
     html += '</div>';
 
+    var validPlages = plages.filter(function(p) { return p.debut && p.fin; });
     if (validPlages.length > 0) {
       var plagesStr = validPlages.map(function(p) { return p.debut + ' - ' + p.fin; }).join(' | ');
       html += '<div class="recap-day-plages">' + plagesStr + '</div>';
@@ -2086,15 +2511,140 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
   }
 
   document.getElementById('recapDaysList').innerHTML = html;
-
-  var wh = Math.floor(weekTotalMin/60);
-  var wm = weekTotalMin%60;
-  document.getElementById('recapWeekTotal').textContent = weekTotalMin > 0 ? wh + 'h' + pad(wm) : '--';
+  document.getElementById('recapWeekTotal').textContent = _fmtMinutes(weekTotalMin);
   document.getElementById('recapWeekDetail').innerHTML =
     daysWorked + ' jour' + (daysWorked > 1 ? 's' : '') + ' travaille' + (daysWorked > 1 ? 's' : '');
 }
 
-function _renderRecapError(msg, weekDays, today, joursFr) {
+function _renderRecapMonth(year, month, today, ecollabDays) {
+  var joursCourts = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  var daysInMonth = new Date(year, month, 0).getDate();
+  var monthTotalMin = 0, monthDaysWorked = 0;
+  var html = '';
+
+  // Grouper par semaines
+  var weeks = [];
+  var currentWeek = null;
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dateStr = year + '-' + pad(month) + '-' + pad(d);
+    var dt = new Date(dateStr + 'T12:00:00');
+    var dow = dt.getDay(); // 0=Dim
+    var isMonday = (dow === 1);
+    if (!currentWeek || isMonday) {
+      currentWeek = { days: [], weekNum: getISOWeekNumber(dateStr) };
+      weeks.push(currentWeek);
+    }
+    currentWeek.days.push(dateStr);
+  }
+
+  weeks.forEach(function(week) {
+    var weekTotalMin = 0;
+    var dayRows = '';
+
+    week.days.forEach(function(dayStr) {
+      var info = (ecollabDays && ecollabDays[dayStr]) ? ecollabDays[dayStr] : null;
+      var dt = new Date(dayStr + 'T12:00:00');
+      var dowIdx = (dt.getDay() + 6) % 7; // 0=Lun
+      var dayName = joursCourts[dowIdx] + ' ' + pad(dt.getDate());
+
+      var dayMin = info ? _calcDayMinutes(info.plages) : 0;
+      if (dayMin > 0) monthDaysWorked++;
+      weekTotalMin += dayMin;
+      monthTotalMin += dayMin;
+
+      var isToday = (dayStr === today);
+      var rowCls = 'recap-month-day-row';
+      if (dayMin === 0 && !isToday) rowCls += ' empty';
+      if (isToday) rowCls += ' today';
+
+      var plagesStr = '';
+      if (info && info.plages) {
+        var vp = info.plages.filter(function(p) { return p.debut && p.fin; });
+        if (vp.length > 0) plagesStr = vp.map(function(p) { return p.debut + '-' + p.fin; }).join(' | ');
+      }
+
+      dayRows += '<div class="' + rowCls + '">';
+      dayRows += '<span class="recap-month-day-name">' + dayName + '</span>';
+      dayRows += '<span class="recap-month-day-plages">' + plagesStr + '</span>';
+      dayRows += '<span class="recap-month-day-hours">' + _fmtMinutes(dayMin) + '</span>';
+      dayRows += '</div>';
+    });
+
+    html += '<div class="recap-month-week">';
+    html += '<div class="recap-month-week-header">';
+    html += '<span class="recap-month-week-label">Semaine ' + week.weekNum + '</span>';
+    html += '<span class="recap-month-week-total">' + _fmtMinutes(weekTotalMin) + '</span>';
+    html += '</div>';
+    html += dayRows;
+    html += '</div>';
+  });
+
+  document.getElementById('recapDaysList').innerHTML = html;
+  document.getElementById('recapWeekTotal').textContent = _fmtMinutes(monthTotalMin);
+  document.getElementById('recapWeekDetail').innerHTML =
+    monthDaysWorked + ' jour' + (monthDaysWorked > 1 ? 's' : '') + ' travaille' + (monthDaysWorked > 1 ? 's' : '');
+}
+
+function _renderEcollabRecap() {
+  var currentDate = S.date || todayISO();
+  var recapCacheKey = 'eco_recap_data_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+  var recap = null;
+  try { recap = JSON.parse(localStorage.getItem(recapCacheKey)); } catch(e) {}
+
+  var grid = document.getElementById('recapEcollabGrid');
+  if (!grid) return;
+
+  if (!recap) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--light);padding:12px">Actualiser pour charger les compteurs</div>';
+    return;
+  }
+
+  var items = [];
+
+  // Heures supplementaires (toujours afficher)
+  items.push({
+    label: 'H. Supp.',
+    value: (parseFloat(recap.totalHeures) || 0) + 'h',
+    sub: recap.totalHeuresEquivalent && recap.totalHeuresEquivalent !== recap.totalHeures ? 'equiv. ' + recap.totalHeuresEquivalent + 'h' : ''
+  });
+
+  // Heures feries
+  var hf = recap.heuresFeries || {};
+  items.push({
+    label: 'H. Feries',
+    value: (hf.total || 0) + 'h',
+    sub: hf.majorees > 0 ? 'maj. ' + hf.majorees + 'h' : ''
+  });
+
+  // Heures nuit
+  var hn = recap.heuresNuit || {};
+  items.push({
+    label: 'H. Nuit',
+    value: (hn.total || 0) + 'h',
+    sub: hn.majorees > 0 ? 'maj. ' + hn.majorees + 'h' : ''
+  });
+
+  // Heures dimanche
+  var hd = recap.heuresDimanche || {};
+  items.push({
+    label: 'H. Dimanche',
+    value: (hd.total || 0) + 'h',
+    sub: hd.majorees > 0 ? 'maj. ' + hd.majorees + 'h' : ''
+  });
+
+  var html = '';
+  items.forEach(function(item) {
+    html += '<div class="recap-ecollab-item">';
+    html += '<div class="recap-ecollab-item-label">' + item.label + '</div>';
+    html += '<div class="recap-ecollab-item-value">' + item.value + '</div>';
+    if (item.sub) html += '<div class="recap-ecollab-item-sub">' + item.sub + '</div>';
+    html += '</div>';
+  });
+
+  grid.innerHTML = html;
+}
+
+function _renderRecapError(msg) {
   document.getElementById('recapDaysList').innerHTML =
     '<div class="recap-error">' + msg +
     '<br><button class="recap-error-btn" onclick="renderRecap()">Reessayer</button></div>';
@@ -2220,7 +2770,8 @@ function _lancerCloture(plages, pointageDate, cancelBtn) {
       password: CFG.password,
       url:      CFG.url,
       plages:   plages,
-      date:     pointageDate
+      date:     pointageDate,
+      variables: S.variables || {}
     }),
     signal: _clotureAbort.signal
   })
@@ -2278,7 +2829,7 @@ function login() {
   }
 
   // Test login via server
-  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
+  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'http://localhost:5000';
   var ecolUrl=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
 
   fetch(serverUrl+'/test-login',{
@@ -2404,10 +2955,17 @@ function _backgroundRecapRefresh() {
         localStorage.setItem(cacheKey, JSON.stringify(data.days));
         localStorage.setItem(syncKey, new Date().toISOString());
       } catch(e) {}
+      // Stocker les données récap eCollab si présentes
+      if (data.recap) {
+        try {
+          var recapDataKey = 'eco_recap_data_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+          localStorage.setItem(recapDataKey, JSON.stringify(data.recap));
+        } catch(e) {}
+      }
       // Si le recap est affiché, mettre à jour l'affichage
       var rc = document.getElementById('recapScreen');
       if (rc && rc.style.display === 'block') {
-        renderRecap();
+        renderRecapContent();
       }
       // Si le jour courant est déjà validé dans eCollab, bloquer et charger les plages
       var todayStr = S.date || todayISO();
