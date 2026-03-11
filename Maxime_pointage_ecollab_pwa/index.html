@@ -1292,7 +1292,7 @@
     </div>
     <div class="field">
       <label>URL du serveur</label>
-      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="https://pointage-ecollab-serveur.up.railway.app" />
+      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="http://localhost:5000" />
       <div class="hint">Adresse du serveur de clôture.</div>
     </div>
     <button class="btn-login" id="btnLogin" onclick="login()">Se connecter</button>
@@ -1624,7 +1624,7 @@
   </div>
   <div class="field">
     <label>URL du serveur</label>
-    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="https://pointage-ecollab-serveur.up.railway.app" />
+    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="http://localhost:5000" />
     <div class="hint">Adresse de votre serveur de clôture automatique.</div>
   </div>
 
@@ -1801,7 +1801,7 @@ function loadSettings() {
       CFG.password=localStorage.getItem('eco_pwd_'+user)||'';
     }
     CFG.url=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
-    CFG.server=localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
+    CFG.server=localStorage.getItem('eco_server')||'http://localhost:5000';
     loadDefaults();
   }catch(e){}
 }
@@ -2317,9 +2317,7 @@ function renderRecap(forceRefresh) {
   var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
   var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
   var cached = null;
-  if (!forceRefresh) {
-    try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
-  }
+  try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
 
   _updateRecapSyncInfo(syncKey);
 
@@ -2329,7 +2327,7 @@ function renderRecap(forceRefresh) {
     return;
   }
 
-  // Afficher le cache s'il existe, sinon le loader
+  // Afficher le cache immédiatement s'il existe
   if (cached) {
     renderRecapContent();
   } else {
@@ -2339,6 +2337,7 @@ function renderRecap(forceRefresh) {
     document.getElementById('recapWeekDetail').innerHTML = '';
   }
 
+  // Toujours rafraîchir depuis le serveur (le cache est juste pour affichage immédiat)
   var refreshBtn = document.getElementById('recapRefreshBtn');
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '\u23F3 Chargement...'; }
 
@@ -2595,7 +2594,7 @@ function _renderEcollabRecap() {
   if (!grid) return;
 
   if (!recap) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--light);padding:12px">Actualiser pour charger les compteurs</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--light);padding:12px"><div class="loader-ring" style="width:20px;height:20px;border-width:2px;margin:0 auto 6px"></div>Chargement des compteurs...</div>';
     return;
   }
 
@@ -2829,7 +2828,7 @@ function login() {
   }
 
   // Test login via server
-  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
+  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'http://localhost:5000';
   var ecolUrl=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
 
   fetch(serverUrl+'/test-login',{
