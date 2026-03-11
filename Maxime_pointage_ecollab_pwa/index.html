@@ -1292,7 +1292,7 @@
     </div>
     <div class="field">
       <label>URL du serveur</label>
-      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="http://localhost:5000" />
+      <input type="url" id="loginServer" placeholder="http://192.168.1.112:5000" value="https://pointage-ecollab-serveur.up.railway.app" />
       <div class="hint">Adresse du serveur de clôture.</div>
     </div>
     <button class="btn-login" id="btnLogin" onclick="login()">Se connecter</button>
@@ -1624,7 +1624,7 @@
   </div>
   <div class="field">
     <label>URL du serveur</label>
-    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="http://localhost:5000" />
+    <input type="url" id="sServer" placeholder="https://votre-serveur.railway.app" value="https://pointage-ecollab-serveur.up.railway.app" />
     <div class="hint">Adresse de votre serveur de clôture automatique.</div>
   </div>
 
@@ -1801,7 +1801,7 @@ function loadSettings() {
       CFG.password=localStorage.getItem('eco_pwd_'+user)||'';
     }
     CFG.url=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
-    CFG.server=localStorage.getItem('eco_server')||'http://localhost:5000';
+    CFG.server=localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
     loadDefaults();
   }catch(e){}
 }
@@ -2828,7 +2828,7 @@ function login() {
   }
 
   // Test login via server
-  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'http://localhost:5000';
+  var serverUrl=CFG.server||localStorage.getItem('eco_server')||'https://pointage-ecollab-serveur.up.railway.app';
   var ecolUrl=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
 
   fetch(serverUrl+'/test-login',{
