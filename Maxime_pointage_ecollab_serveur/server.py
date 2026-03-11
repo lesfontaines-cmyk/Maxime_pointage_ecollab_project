@@ -206,46 +206,185 @@ def fetch_ecollab_days(email, password, url, date_str=""):
         recap_data = None
         try:
             # Cliquer sur l'onglet Récapitulatif
-            driver.execute_script("""
-                var tabs = document.querySelectorAll('a, button, .nav-link, [role="tab"]');
+            tab_clicked = driver.execute_script("""
+                var tabs = document.querySelectorAll('a, button, .nav-link, [role="tab"], li');
                 for (var i = 0; i < tabs.length; i++) {
-                    if (tabs[i].textContent.trim().toLowerCase().indexOf('capitulatif') !== -1) {
+                    var t = tabs[i].textContent.trim().toLowerCase();
+                    if (t.indexOf('capitulatif') !== -1 || t.indexOf('recap') !== -1) {
                         tabs[i].click();
+                        return true;
+                    }
+                }
+                return false;
+            """)
+            print(f"  [recap] Onglet Récapitulatif cliqué: {tab_clicked}")
+            time.sleep(3)
+
+            recap_result = driver.execute_script("""
+                var r = {};
+                var debugInfo = [];
+
+                // Chercher le composant Vue recap — essayer plusieurs sélecteurs
+                var selectors = ['#variable-paie', '#vueSaisieRapide', '[id*="recap"]', '[id*="variable"]', '[id*="paie"]'];
+                var vm = null;
+                var foundSelector = '';
+                for (var i = 0; i < selectors.length; i++) {
+                    var el = document.querySelector(selectors[i]);
+                    if (el && el.__vue__) {
+                        vm = el.__vue__;
+                        foundSelector = selectors[i];
                         break;
                     }
                 }
-            """)
-            time.sleep(2)
+                if (!vm) {
+                    // Fallback: chercher tout élément avec __vue__
+                    var allEls = document.querySelectorAll('*');
+                    for (var i = 0; i < allEls.length; i++) {
+                        if (allEls[i].__vue__ && allEls[i].id) {
+                            debugInfo.push('vue_el: #' + allEls[i].id);
+                        }
+                    }
+                    return {error: 'NO_VUE_FOUND', debugInfo: debugInfo};
+                }
+                debugInfo.push('found_on: ' + foundSelector);
 
-            recap_result = driver.execute_script("""
-                var el = document.getElementById('variable-paie');
-                if (!el || !el.__vue__) return {error: 'NO_VUE_VARIABLE_PAIE'};
-                var vm = el.__vue__;
-                var r = {};
+                // Remonter la chaîne $parent pour trouver le bon composant
+                var root = vm;
+                var chain = [foundSelector];
+                while (root.$parent && root.$parent !== root.$root) {
+                    root = root.$parent;
+                    chain.push(root.$options && root.$options.name ? root.$options.name : '?');
+                }
+                debugInfo.push('chain: ' + chain.join(' > '));
 
-                r.totalHeures = vm.TotalHeures || '0';
-                r.totalHeuresEquivalent = vm.TotalHeuresEquivalent || '0';
-
-                var hf = vm.TotalHeuresJoursFeries || {};
-                r.heuresFeries = {total: hf.totalHeuresFeries || 0, majorees: hf.totalHeuresFeriesMajorees || 0};
-
-                var hn = vm.TotalHeuresHeuresNuit || {};
-                r.heuresNuit = {total: hn.totalHeuresNuit || 0, majorees: hn.totalHeuresNuitMajorees || 0};
-
-                var hd = vm.TotalHeuresHeuresDimanche || {};
-                r.heuresDimanche = {total: hd.totalHeuresDimanche || 0, majorees: hd.totalHeuresDimancheMajorees || 0};
-
-                var detail = vm.RecapitulatifDetailHeuresSuppEquivalentes || [];
-                r.detailParSemaine = detail.map(function(d) {
-                    return {plage: d.plage || '', heuresSupp: d.heuresSupp || 0, heuresSuppEquivalentes: d.heuresSuppEquivalentes || 0};
+                // Explorer toutes les propriétés du vm trouvé (et $root)
+                var targets = [{label: 'vm', obj: vm}, {label: '$root', obj: vm.$root}];
+                targets.forEach(function(target) {
+                    var o = target.obj;
+                    if (!o) return;
+                    var keys = Object.keys(o.$data || {});
+                    var proto = Object.getPrototypeOf(o);
+                    if (proto) keys = keys.concat(Object.getOwnPropertyNames(proto));
+                    keys = keys.concat(Object.keys(o));
+                    var seen = new Set();
+                    keys.forEach(function(k) {
+                        if (k.startsWith('_') || k.startsWith('$') || seen.has(k)) return;
+                        seen.add(k);
+                        try {
+                            var v = o[k];
+                            var t = typeof v;
+                            if (t === 'function') return;
+                            var prefix = target.label + '.' + k;
+                            if (v && t === 'object' && !Array.isArray(v)) {
+                                debugInfo.push(prefix + '={' + Object.keys(v).slice(0,10).join(',') + '}');
+                            } else if (Array.isArray(v)) {
+                                debugInfo.push(prefix + '=[' + v.length + ']');
+                            } else if (v !== undefined && v !== null) {
+                                var sv = JSON.stringify(v);
+                                if (sv && sv.length < 100) debugInfo.push(prefix + '=' + sv);
+                            }
+                        } catch(e) {}
+                    });
                 });
+                r._debug_recap_keys = debugInfo;
+
+                // ── Méthode 1: Vue properties (noms possibles) ──
+                var totalH = vm.TotalHeures || vm.totalHeures || vm.NbHeuresSup || vm.nbHeuresSup || vm.HeuresSupplementaires || '';
+                var totalHE = vm.TotalHeuresEquivalent || vm.totalHeuresEquivalent || vm.NbHeuresSupEquivalentes || '';
+                r.totalHeures = totalH || '0';
+                r.totalHeuresEquivalent = totalHE || totalH || '0';
+
+                // Fériés
+                var hf = vm.TotalHeuresJoursFeries || vm.HeuresFeries || vm.JoursFeries || {};
+                r.heuresFeries = {
+                    total: hf.totalHeuresFeries || hf.Total || hf.total || hf.NbHeures || 0,
+                    majorees: hf.totalHeuresFeriesMajorees || hf.Majorees || hf.majorees || 0
+                };
+
+                // Nuit
+                var hn = vm.TotalHeuresHeuresNuit || vm.HeuresNuit || vm.HeureNuit || {};
+                r.heuresNuit = {
+                    total: hn.totalHeuresNuit || hn.Total || hn.total || hn.NbHeures || 0,
+                    majorees: hn.totalHeuresNuitMajorees || hn.Majorees || hn.majorees || 0
+                };
+
+                // Dimanche
+                var hd = vm.TotalHeuresHeuresDimanche || vm.HeuresDimanche || vm.HeureDimanche || {};
+                r.heuresDimanche = {
+                    total: hd.totalHeuresDimanche || hd.Total || hd.total || hd.NbHeures || 0,
+                    majorees: hd.totalHeuresDimancheMajorees || hd.Majorees || hd.majorees || 0
+                };
+
+                // Détail par semaine
+                var detail = vm.RecapitulatifDetailHeuresSuppEquivalentes || vm.DetailHeuresSupp || vm.detailSemaines || [];
+                r.detailParSemaine = detail.map ? detail.map(function(d) {
+                    return {plage: d.plage || d.Plage || '', heuresSupp: d.heuresSupp || d.HeuresSupp || 0, heuresSuppEquivalentes: d.heuresSuppEquivalentes || d.HeuresSuppEquivalentes || 0};
+                }) : [];
+
+                // ── Méthode 2: Scraper le DOM visible du récap ──
+                var domData = {};
+                var panels = document.querySelectorAll('.panel, .card, .recap, [class*="recap"], [class*="total"], table, .table');
+                panels.forEach(function(panel) {
+                    var text = panel.innerText || '';
+                    // Chercher patterns "Label : valeur" ou "Label valeur h"
+                    var lines = text.split('\\n');
+                    lines.forEach(function(line) {
+                        line = line.trim().toLowerCase();
+                        if (line.indexOf('supp') !== -1 && line.match(/[\\d,.]+/)) {
+                            domData.heuresSupp = line;
+                        }
+                        if ((line.indexOf('rié') !== -1 || line.indexOf('ferie') !== -1) && line.match(/[\\d,.]+/)) {
+                            domData.heuresFeries = line;
+                        }
+                        if (line.indexOf('nuit') !== -1 && line.match(/[\\d,.]+/)) {
+                            domData.heuresNuit = line;
+                        }
+                        if (line.indexOf('dimanche') !== -1 && line.match(/[\\d,.]+/)) {
+                            domData.heuresDimanche = line;
+                        }
+                        if ((line.indexOf('récup') !== -1 || line.indexOf('recup') !== -1) && line.match(/[\\d,.]+/)) {
+                            domData.recup = line;
+                        }
+                    });
+                });
+                r._dom_data = domData;
+
+                // ── Méthode 3: Scraper TOUTES les tables du récap ──
+                var tables = document.querySelectorAll('table');
+                var tableData = [];
+                tables.forEach(function(tbl, idx) {
+                    var rows = tbl.querySelectorAll('tr');
+                    var rowTexts = [];
+                    rows.forEach(function(row) {
+                        var cells = row.querySelectorAll('td, th');
+                        var cellTexts = [];
+                        cells.forEach(function(c) { cellTexts.push(c.innerText.trim()); });
+                        if (cellTexts.length > 0) rowTexts.push(cellTexts.join(' | '));
+                    });
+                    if (rowTexts.length > 0) tableData.push('TABLE' + idx + ': ' + rowTexts.join(' // '));
+                });
+                r._tables = tableData.slice(0, 5);
 
                 r.success = true;
                 return r;
             """)
+            print(f"  [recap] Résultat brut: {recap_result}")
+            if recap_result and recap_result.get('error'):
+                print(f"  [recap] Erreur: {recap_result.get('error')}, info: {recap_result.get('debugInfo', [])}")
             if recap_result and recap_result.get('success'):
+                # Log debug info
+                if recap_result.get('_debug_recap_keys'):
+                    for dk in recap_result['_debug_recap_keys'][:30]:
+                        print(f"    [recap-debug] {dk}")
+                if recap_result.get('_dom_data'):
+                    print(f"    [recap-dom] {recap_result['_dom_data']}")
+                if recap_result.get('_tables'):
+                    for t in recap_result['_tables']:
+                        print(f"    [recap-table] {t[:200]}")
                 recap_data = recap_result
-                del recap_data['success']
+                # Nettoyer les clés de debug avant d'envoyer au client
+                for k in ['success', '_debug_recap_keys', '_dom_data', '_tables']:
+                    recap_data.pop(k, None)
         except Exception as e_recap:
             print(f"  [recap] Extraction récap échouée (non bloquant) : {e_recap}")
 
