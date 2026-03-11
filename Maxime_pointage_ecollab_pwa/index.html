@@ -2317,9 +2317,7 @@ function renderRecap(forceRefresh) {
   var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
   var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
   var cached = null;
-  if (!forceRefresh) {
-    try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
-  }
+  try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
 
   _updateRecapSyncInfo(syncKey);
 
@@ -2329,7 +2327,7 @@ function renderRecap(forceRefresh) {
     return;
   }
 
-  // Afficher le cache s'il existe, sinon le loader
+  // Afficher le cache immédiatement s'il existe
   if (cached) {
     renderRecapContent();
   } else {
@@ -2339,6 +2337,7 @@ function renderRecap(forceRefresh) {
     document.getElementById('recapWeekDetail').innerHTML = '';
   }
 
+  // Toujours rafraîchir depuis le serveur (le cache est juste pour affichage immédiat)
   var refreshBtn = document.getElementById('recapRefreshBtn');
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '\u23F3 Chargement...'; }
 
@@ -2595,7 +2594,7 @@ function _renderEcollabRecap() {
   if (!grid) return;
 
   if (!recap) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--light);padding:12px">Actualiser pour charger les compteurs</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--light);padding:12px"><div class="loader-ring" style="width:20px;height:20px;border-width:2px;margin:0 auto 6px"></div>Chargement des compteurs...</div>';
     return;
   }
 
