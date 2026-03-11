@@ -524,24 +524,11 @@
     color: var(--mid);
   }
   .variable-input {
-    width: 56px;
-    padding: 6px 4px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    text-align: center;
-    font-family: var(--sans);
-    font-size: 0.9rem;
-    background: var(--white);
-    color: var(--dark);
-    -moz-appearance: number-input;
-  }
-  .variable-input::-webkit-inner-spin-button,
-  .variable-input::-webkit-outer-spin-button {
-    opacity: 0.4;
-  }
-  .variable-input:focus {
-    outline: none;
-    border-color: var(--gold-lt);
+    width: 20px;
+    height: 20px;
+    accent-color: var(--gold);
+    cursor: pointer;
+    margin: 0;
   }
   .variable-input:disabled {
     opacity: 0.4;
@@ -1413,11 +1400,11 @@
     <div class="variables-body-inner">
       <div class="variable-row">
         <span class="variable-label">Astreinte</span>
-        <input type="number" class="variable-input" id="varAstreinteP" min="0" step="1" value="0" onchange="setVariable('astreinte',this.value)">
+        <input type="checkbox" class="variable-input" id="varAstreinteP" onchange="setVariable('astreinte',this.checked?1:0)">
       </div>
       <div class="variable-row">
         <span class="variable-label">Ind. eloignement</span>
-        <input type="number" class="variable-input" id="varIndemniteP" min="0" step="1" value="0" onchange="setVariable('indemniteEloignement',this.value)">
+        <input type="checkbox" class="variable-input" id="varIndemniteP" onchange="setVariable('indemniteEloignement',this.checked?1:0)">
       </div>
     </div>
   </div>
@@ -1488,11 +1475,11 @@
     <div class="variables-body-inner">
       <div class="variable-row">
         <span class="variable-label">Astreinte</span>
-        <input type="number" class="variable-input" id="varAstreinte" min="0" step="1" value="0" onchange="setVariable('astreinte',this.value)">
+        <input type="checkbox" class="variable-input" id="varAstreinte" onchange="setVariable('astreinte',this.checked?1:0)">
       </div>
       <div class="variable-row">
         <span class="variable-label">Ind. eloignement</span>
-        <input type="number" class="variable-input" id="varIndemnite" min="0" step="1" value="0" onchange="setVariable('indemniteEloignement',this.value)">
+        <input type="checkbox" class="variable-input" id="varIndemnite" onchange="setVariable('indemniteEloignement',this.checked?1:0)">
       </div>
     </div>
   </div>
@@ -2050,16 +2037,16 @@ function renderVariables() {
   // Saisie manuelle page
   var va = document.getElementById('varAstreinte');
   var vi = document.getElementById('varIndemnite');
-  if (va) { va.value = S.variables.astreinte || 0; va.disabled = dis; }
-  if (vi) { vi.value = S.variables.indemniteEloignement || 0; vi.disabled = dis; }
+  if (va) { va.checked = !!S.variables.astreinte; va.disabled = dis; }
+  if (vi) { vi.checked = !!S.variables.indemniteEloignement; vi.disabled = dis; }
   var t = document.getElementById('varToggle');
   if (t) { t.classList.toggle('has-values', hasVals); }
 
   // Pointage page
   var vap = document.getElementById('varAstreinteP');
   var vip = document.getElementById('varIndemniteP');
-  if (vap) { vap.value = S.variables.astreinte || 0; vap.disabled = dis; }
-  if (vip) { vip.value = S.variables.indemniteEloignement || 0; vip.disabled = dis; }
+  if (vap) { vap.checked = !!S.variables.astreinte; vap.disabled = dis; }
+  if (vip) { vip.checked = !!S.variables.indemniteEloignement; vip.disabled = dis; }
   var tp = document.getElementById('varToggleP');
   if (tp) { tp.classList.toggle('has-values', hasVals); }
 }
@@ -2136,6 +2123,7 @@ function reinitialiser() {
 // ======================================
 // HORLOGE & POINTAGE
 // ======================================
+var _lastDayCheck = '';
 function tick() {
   var n=new Date();
   var el=document.getElementById('clockH');
@@ -2147,6 +2135,14 @@ function tick() {
   // Date display on pointage page
   var pdd=document.getElementById('pDateDisplay');
   if(pdd) pdd.textContent=n.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase();
+  // Auto-reset au changement de jour (vérifié toutes les 60s pour perf)
+  var today = todayISO();
+  if (_lastDayCheck !== today) {
+    _lastDayCheck = today;
+    if (S.date && S.date !== today && CFG.email) {
+      _checkDayChange();
+    }
+  }
   // Timer en poste
   if(S.enPoste && _priseTsMs) {
     var d=Math.floor((Date.now()-_priseTsMs)/1000);
@@ -2163,7 +2159,32 @@ function nowHHMM() { var d=new Date(); return pad(d.getHours())+':'+pad(d.getMin
 function arrondiSup(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.ceil((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
 function arrondiInf(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.floor((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
 
+// Vérifier si le jour a changé et réinitialiser si besoin
+function _checkDayChange() {
+  var today = todayISO();
+  if (S.date && S.date !== today) {
+    // Le jour a changé — sauvegarder l'ancien state puis réinitialiser pour le nouveau jour
+    save(); // sauvegarde l'ancien jour
+    S.date = today;
+    S.plages = getDefaultPlages();
+    S.cloture = false;
+    S.enPoste = false;
+    S.history = [];
+    S.variables = {astreinte:0, indemniteEloignement:0};
+    _priseTsMs = null;
+    save(); // sauvegarde le nouveau jour vide
+    loadState(); // charger le state du nouveau jour si existant
+    updateDateDisplay();
+    render();
+    renderPointage();
+    toast('Nouvelle journee : ' + today, 'info');
+    return true;
+  }
+  return false;
+}
+
 function pointePrise() {
+  _checkDayChange();
   var h=nowHHMM();
   // Premier pointage auto : vider les plages par defaut
   if(!S.history.length) S.plages=[];
@@ -2176,6 +2197,7 @@ function pointePrise() {
 }
 
 function pointeFin() {
+  _checkDayChange();
   var h=nowHHMM();
   var idx=-1;
   for(var i=S.plages.length-1;i>=0;i--){if(S.plages[i].debut&&!S.plages[i].fin){idx=i;break;}}
