@@ -266,6 +266,71 @@ def fetch_ecollab_days(email, password, url, date_str=""):
             driver.quit()
             return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None, []
 
+        # ── Si pas de taches trouvées, cliquer sur une semaine pour charger les composants ──
+        if not result.get('taches'):
+            try:
+                driver.execute_script("""
+                    // Cliquer sur la premiere semaine pour ouvrir les composants
+                    var rows = document.querySelectorAll('tr, .semaine-row, [class*=semaine], [class*=Semaine]');
+                    for (var i = 0; i < rows.length; i++) {
+                        var txt = rows[i].textContent;
+                        if (txt && (txt.indexOf('S') === 0 || txt.indexOf('Semaine') !== -1) && txt.indexOf('-') !== -1) {
+                            rows[i].click();
+                            break;
+                        }
+                    }
+                    // Fallback: cliquer sur le premier element cliquable dans la liste des semaines
+                    if (!rows.length) {
+                        var items = document.querySelectorAll('.list-group-item, .semaine-item, [data-toggle]');
+                        if (items.length) items[0].click();
+                    }
+                """)
+                import time as _time
+                _time.sleep(2)
+                # Re-extraire les taches depuis les composants maintenant rendus
+                taches_result = driver.execute_script("""
+                    let taches = [];
+                    // Chercher dans les props des composants Vue rendus
+                    document.querySelectorAll('*').forEach(el => {
+                        if (taches.length > 0) return;
+                        try {
+                            const v = el.__vue__;
+                            if (v && v.$props) {
+                                const ts = v.$props.taches || v.$props.tachesDispos;
+                                if (ts && Array.isArray(ts) && ts.length > 0) {
+                                    for (const t of ts) {
+                                        const id = t.Id || t.id || t.IdTache;
+                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
+                                        if (id && lib) taches.push({id: id, label: lib});
+                                    }
+                                }
+                            }
+                        } catch(x) {}
+                    });
+                    // Fallback: extraire depuis les <select> HTML
+                    if (taches.length === 0) {
+                        document.querySelectorAll('select').forEach(s => {
+                            if (taches.length > 0 || s.options.length < 4) return;
+                            if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
+                            for (let i = 0; i < s.options.length; i++) {
+                                const val = s.options[i].value;
+                                const txt = s.options[i].text.trim();
+                                if (val && txt && txt !== '--') {
+                                    taches.push({id: parseInt(val) || val, label: txt});
+                                }
+                            }
+                        });
+                    }
+                    // Deduplicate
+                    const seen = {};
+                    return taches.filter(t => { if (seen[t.id]) return false; seen[t.id] = true; return true; });
+                """)
+                if taches_result and len(taches_result) > 0:
+                    result['taches'] = taches_result
+                    print(f"  [taches] Extraites après clic semaine : {len(taches_result)} tâches")
+            except Exception as e_taches:
+                print(f"  [taches] Extraction après clic échouée (non bloquant) : {e_taches}")
+
         # ── Extraction des données Récapitulatif (optionnel) ──
         recap_data = None
         try:
