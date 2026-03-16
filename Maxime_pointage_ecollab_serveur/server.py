@@ -248,7 +248,7 @@ def fetch_ecollab_days(email, password, url, date_str=""):
 
         if not result or result.get('error'):
             driver.quit()
-            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None
+            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None, []
 
         # ── Extraction des données Récapitulatif (optionnel) ──
         recap_data = None
@@ -438,13 +438,13 @@ def fetch_ecollab_days(email, password, url, date_str=""):
 
         driver.quit()
 
-        return True, result.get('days', {}), result.get('_debug_keys', []), recap_data
+        return True, result.get('days', {}), result.get('_debug_keys', []), recap_data, result.get('taches', [])
 
     except Exception as e:
         if driver:
             try: driver.quit()
             except: pass
-        return False, f"Erreur inattendue : {e}", [], None
+        return False, f"Erreur inattendue : {e}", [], None, []
 
 
 # ─── CLÔTURE SELENIUM ────────────────────────────────────────────────────────
@@ -1044,13 +1044,15 @@ def fetch_week():
     if not url:
         return jsonify({"success": False, "error": "URL Ecollaboratrice requise"}), 400
 
-    success, result, debug_keys, recap = fetch_ecollab_days(email, password, url, date_str)
+    success, result, debug_keys, recap, taches = fetch_ecollab_days(email, password, url, date_str)
     if success:
         resp = {"success": True, "days": result}
         if debug_keys:
             resp["_debug_keys"] = debug_keys
         if recap:
             resp["recap"] = recap
+        if taches:
+            resp["taches"] = taches
         return jsonify(resp)
     else:
         return jsonify({"success": False, "error": result}), 500
