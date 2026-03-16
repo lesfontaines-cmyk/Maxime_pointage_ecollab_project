@@ -270,20 +270,9 @@ def fetch_ecollab_days(email, password, url, date_str=""):
         if not result.get('taches'):
             try:
                 driver.execute_script("""
-                    // Cliquer sur la premiere semaine pour ouvrir les composants
-                    var rows = document.querySelectorAll('tr, .semaine-row, [class*=semaine], [class*=Semaine]');
-                    for (var i = 0; i < rows.length; i++) {
-                        var txt = rows[i].textContent;
-                        if (txt && (txt.indexOf('S') === 0 || txt.indexOf('Semaine') !== -1) && txt.indexOf('-') !== -1) {
-                            rows[i].click();
-                            break;
-                        }
-                    }
-                    // Fallback: cliquer sur le premier element cliquable dans la liste des semaines
-                    if (!rows.length) {
-                        var items = document.querySelectorAll('.list-group-item, .semaine-item, [data-toggle]');
-                        if (items.length) items[0].click();
-                    }
+                    // Cliquer sur la premiere semaine (list-group-item) pour rendre les composants horaires
+                    var items = document.querySelectorAll('.list-group.selectable-item .list-group-item');
+                    if (items.length > 0) items[0].click();
                 """)
                 import time as _time
                 _time.sleep(2)
