@@ -199,6 +199,7 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 10px;
+    overflow: hidden;
   }
   .time-row:last-child { margin-bottom: 0; }
   .time-row-label {
@@ -235,9 +236,11 @@
     text-align: left;
     letter-spacing: 0.5px;
     min-width: 0;
+    max-width: calc(100% - 48px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-sizing: border-box;
   }
 
   .add-plage-btn {
@@ -1968,13 +1971,14 @@ function _syncEnPosteFromPlages() {
     if (S.plages[i].debut && !S.plages[i].fin) { open = true; break; }
   }
   S.enPoste = open;
+  if (open && !_priseTsMs) _priseTsMs = Date.now();
   if (!open) _priseTsMs = null;
 }
-function addPlage() { S.plages.push({debut:'',fin:''}); _syncEnPosteFromPlages(); render(); save(); }
+function addPlage() { S.plages.push({debut:'',fin:''}); _syncEnPosteFromPlages(); render(); renderPointage(); save(); }
 function removePlage(i) {
-  S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); save();
+  S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); renderPointage(); save();
 }
-function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; _syncEnPosteFromPlages(); render(); save(); }
+function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; _syncEnPosteFromPlages(); render(); renderPointage(); save(); }
 
 function genTacheOptions(selected) {
   var html = '<option value="">— Aucune —</option>';
@@ -2234,11 +2238,20 @@ function pointePrise() {
   var h=nowHHMM();
   // Premier pointage auto : vider les plages par defaut
   if(!S.history.length) S.plages=[];
-  S.plages.push({debut:arrondiSup(h),fin:''});
+  // Chercher une plage existante sans debut (créée manuellement)
+  var found = -1;
+  for (var i = S.plages.length - 1; i >= 0; i--) {
+    if (!S.plages[i].debut && !S.plages[i].fin) { found = i; break; }
+  }
+  if (found >= 0) {
+    S.plages[found].debut = arrondiSup(h);
+  } else {
+    S.plages.push({debut:arrondiSup(h),fin:''});
+  }
   S.enPoste=true;
   _priseTsMs=Date.now();
   S.history.unshift({type:'prise',time:h,arrondi:arrondiSup(h)});
-  save(); syncStateToServer(); renderPointage();
+  save(); syncStateToServer(); renderPointage(); render();
   toast('Prise à '+h+' (comptabilisé '+arrondiSup(h)+')','success');
 }
 
@@ -2251,7 +2264,7 @@ function pointeFin() {
   S.enPoste=false;
   _priseTsMs=null;
   S.history.unshift({type:'fin',time:h,arrondi:arrondiInf(h)});
-  save(); syncStateToServer(); renderPointage();
+  save(); syncStateToServer(); renderPointage(); render();
   toast('Fin à '+h+' (comptabilisé '+arrondiInf(h)+')','info');
 }
 
@@ -2273,19 +2286,29 @@ function calcPointageTotal() {
 }
 
 function _buildHistoryMapping() {
-  // Associe chaque plage S.plages[i] à ses événements prise/fin de l'historique
+  // Associe chaque plage S.plages[i] à ses événements prise/fin par valeur de temps
   var map = {};
   var events = S.history.slice().reverse(); // plus ancien en premier
-  var plageIdx = 0;
   for (var i = 0; i < events.length; i++) {
     var ev = events[i];
     if (ev.type === 'prise') {
-      if (!map[plageIdx]) map[plageIdx] = {};
-      map[plageIdx].prise = ev;
+      // Trouver la plage dont le debut correspond à l'arrondi
+      for (var j = 0; j < S.plages.length; j++) {
+        if (S.plages[j].debut === ev.arrondi && (!map[j] || !map[j].prise)) {
+          if (!map[j]) map[j] = {};
+          map[j].prise = ev;
+          break;
+        }
+      }
     } else if (ev.type === 'fin') {
-      if (!map[plageIdx]) map[plageIdx] = {};
-      map[plageIdx].fin = ev;
-      plageIdx++;
+      // Trouver la plage dont la fin correspond à l'arrondi
+      for (var j = 0; j < S.plages.length; j++) {
+        if (S.plages[j].fin === ev.arrondi && (!map[j] || !map[j].fin)) {
+          if (!map[j]) map[j] = {};
+          map[j].fin = ev;
+          break;
+        }
+      }
     }
   }
   return map;
