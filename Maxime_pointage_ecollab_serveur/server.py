@@ -200,7 +200,7 @@ def fetch_ecollab_days(email, password, url, date_str=""):
             // Extraire la liste des taches disponibles
             let taches = [];
             try {
-                // Chercher dans le modele Vue : Taches, ListeTaches, currentSalarie.Taches
+                // Methode 1: Chercher dans le modele Vue racine
                 const cs = vm.$data.currentSalarie || {};
                 const tSources = [cs.Taches, cs.ListeTaches, vm.$data.Taches, vm.$data.ListeTaches,
                                   vm.$data.model && vm.$data.model.Taches];
@@ -214,24 +214,40 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                         break;
                     }
                 }
-                // Fallback: chercher dans les composants vdp-plage-horaire
+                // Methode 2: Parcourir l'arbre des composants Vue ($children recursif)
                 if (taches.length === 0) {
-                    document.querySelectorAll('*').forEach(el => {
-                        try {
-                            const v = el.__vue__;
-                            if (v && v.$options && v.$options.name &&
-                                v.$options.name.toLowerCase().indexOf('plage') !== -1) {
-                                const ts = v.taches || v.listeTaches || v.$props.taches ||
-                                           (v.$data && v.$data.taches);
-                                if (ts && Array.isArray(ts) && ts.length > 0) {
-                                    for (const t of ts) {
-                                        const id = t.Id || t.id || t.IdTache;
-                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || '';
-                                        if (id && lib) taches.push({id: id, label: lib});
-                                    }
+                    const searchChildren = (comp) => {
+                        if (taches.length > 0) return;
+                        if (comp.$props) {
+                            const ts = comp.$props.taches || comp.$props.tachesDispos;
+                            if (ts && Array.isArray(ts) && ts.length > 0) {
+                                for (const t of ts) {
+                                    const id = t.Id || t.id || t.IdTache;
+                                    const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
+                                    if (id && lib) taches.push({id: id, label: lib});
                                 }
+                                return;
                             }
-                        } catch(x) {}
+                        }
+                        if (comp.$children) {
+                            for (const child of comp.$children) searchChildren(child);
+                        }
+                    };
+                    searchChildren(vm);
+                }
+                // Methode 3: Fallback DOM - chercher les <select> avec beaucoup d'options (page feuille de pointage)
+                if (taches.length === 0) {
+                    document.querySelectorAll('select').forEach(s => {
+                        if (taches.length > 0 || s.options.length < 4) return;
+                        // Verifier que ce n'est pas un select d'heures (options 00:00-23:45)
+                        if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
+                        for (let i = 0; i < s.options.length; i++) {
+                            const val = s.options[i].value;
+                            const txt = s.options[i].text.trim();
+                            if (val && txt && txt !== '--') {
+                                taches.push({id: parseInt(val) || val, label: txt});
+                            }
+                        }
                     });
                 }
                 // Deduplicate
@@ -248,7 +264,61 @@ def fetch_ecollab_days(email, password, url, date_str=""):
 
         if not result or result.get('error'):
             driver.quit()
-            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None
+            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None, []
+
+        # ── Si pas de taches trouvées, cliquer sur une semaine pour charger les composants ──
+        if not result.get('taches'):
+            try:
+                driver.execute_script("""
+                    // Cliquer sur la premiere semaine (list-group-item) pour rendre les composants horaires
+                    var items = document.querySelectorAll('.list-group.selectable-item .list-group-item');
+                    if (items.length > 0) items[0].click();
+                """)
+                import time as _time
+                _time.sleep(2)
+                # Re-extraire les taches depuis les composants maintenant rendus
+                taches_result = driver.execute_script("""
+                    let taches = [];
+                    // Chercher dans les props des composants Vue rendus
+                    document.querySelectorAll('*').forEach(el => {
+                        if (taches.length > 0) return;
+                        try {
+                            const v = el.__vue__;
+                            if (v && v.$props) {
+                                const ts = v.$props.taches || v.$props.tachesDispos;
+                                if (ts && Array.isArray(ts) && ts.length > 0) {
+                                    for (const t of ts) {
+                                        const id = t.Id || t.id || t.IdTache;
+                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
+                                        if (id && lib) taches.push({id: id, label: lib});
+                                    }
+                                }
+                            }
+                        } catch(x) {}
+                    });
+                    // Fallback: extraire depuis les <select> HTML
+                    if (taches.length === 0) {
+                        document.querySelectorAll('select').forEach(s => {
+                            if (taches.length > 0 || s.options.length < 4) return;
+                            if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
+                            for (let i = 0; i < s.options.length; i++) {
+                                const val = s.options[i].value;
+                                const txt = s.options[i].text.trim();
+                                if (val && txt && txt !== '--') {
+                                    taches.push({id: parseInt(val) || val, label: txt});
+                                }
+                            }
+                        });
+                    }
+                    // Deduplicate
+                    const seen = {};
+                    return taches.filter(t => { if (seen[t.id]) return false; seen[t.id] = true; return true; });
+                """)
+                if taches_result and len(taches_result) > 0:
+                    result['taches'] = taches_result
+                    print(f"  [taches] Extraites après clic semaine : {len(taches_result)} tâches")
+            except Exception as e_taches:
+                print(f"  [taches] Extraction après clic échouée (non bloquant) : {e_taches}")
 
         # ── Extraction des données Récapitulatif (optionnel) ──
         recap_data = None
@@ -438,13 +508,13 @@ def fetch_ecollab_days(email, password, url, date_str=""):
 
         driver.quit()
 
-        return True, result.get('days', {}), result.get('_debug_keys', []), recap_data
+        return True, result.get('days', {}), result.get('_debug_keys', []), recap_data, result.get('taches', [])
 
     except Exception as e:
         if driver:
             try: driver.quit()
             except: pass
-        return False, f"Erreur inattendue : {e}", [], None
+        return False, f"Erreur inattendue : {e}", [], None, []
 
 
 # ─── CLÔTURE SELENIUM ────────────────────────────────────────────────────────
@@ -1044,13 +1114,15 @@ def fetch_week():
     if not url:
         return jsonify({"success": False, "error": "URL Ecollaboratrice requise"}), 400
 
-    success, result, debug_keys, recap = fetch_ecollab_days(email, password, url, date_str)
+    success, result, debug_keys, recap, taches = fetch_ecollab_days(email, password, url, date_str)
     if success:
         resp = {"success": True, "days": result}
         if debug_keys:
             resp["_debug_keys"] = debug_keys
         if recap:
             resp["recap"] = recap
+        if taches:
+            resp["taches"] = taches
         return jsonify(resp)
     else:
         return jsonify({"success": False, "error": result}), 500
