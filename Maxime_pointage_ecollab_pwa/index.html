@@ -255,6 +255,7 @@
   /* --- RESUME --- */
   .resume-section {
     padding: 0 24px;
+    margin-top: 12px;
     margin-bottom: 24px;
   }
   .resume-card {
@@ -1987,15 +1988,13 @@ function renderPlages() {
   var dejaValide = _isJourValideEcollab();
   var disabledAttr = (dejaValide || S.cloture) ? ' disabled' : '';
   var opacityStyle = (dejaValide || S.cloture) ? ' style="opacity:0.5;pointer-events:none"' : '';
-  var hasTaches = TACHES.length > 0;
-
   document.getElementById('plagesList').innerHTML=S.plages.map(function(p,i){
     var label = S.plages.length>1 ? 'Plage '+(i+1) : 'Horaires';
     var delBtn = (!dejaValide && !S.cloture && i===S.plages.length-1) ? '<button class="plage-del-btn" onclick="removePlage('+i+')">Supprimer</button>' : '';
-    var tacheRow = hasTaches ? '<div class="time-row">'+
+    var tacheRow = '<div class="time-row">'+
         '<span class="time-row-label">Tache</span>'+
         '<select class="time-select tache-select" onchange="setField('+i+',\'tache\',this.value)"'+disabledAttr+'>'+genTacheOptions(p.tache||'')+'</select>'+
-      '</div>' : '';
+      '</div>';
     return '<div class="plage-card"'+opacityStyle+'>'+
       '<div class="plage-card-head">'+
         '<span class="plage-label">'+label+'</span>'+
@@ -2315,7 +2314,6 @@ function renderPointage() {
   }
 
   // Plages du jour (cartes comme saisie manuelle, avec info pointage)
-  var hasTaches = TACHES.length > 0;
   var dis = dejaValidePt || S.cloture;
   var disabledAttr = dis ? ' disabled' : '';
 
@@ -2346,10 +2344,10 @@ function renderPointage() {
       if (hinfo && hinfo.fin && hinfo.fin.time !== hinfo.fin.arrondi) {
         finDisplay = '<span class="pt-real">' + hinfo.fin.time + '</span> \u2192 <span class="pt-retained">' + hinfo.fin.arrondi + '</span>';
       }
-      var tacheRow = hasTaches ? '<div class="time-row">' +
+      var tacheRow = '<div class="time-row">' +
           '<span class="time-row-label">Tache</span>' +
           '<select class="time-select tache-select" onchange="setField('+i+',\'tache\',this.value)"' + disabledAttr + '>' + genTacheOptions(p.tache||'') + '</select>' +
-        '</div>' : '';
+        '</div>';
       return '<div class="plage-card"' + (dis ? ' style="opacity:0.5;pointer-events:none"' : '') + '>' +
         '<div class="plage-card-head">' +
           '<span class="plage-label">' + label + '</span>' +
