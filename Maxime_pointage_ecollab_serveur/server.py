@@ -200,7 +200,7 @@ def fetch_ecollab_days(email, password, url, date_str=""):
             // Extraire la liste des taches disponibles
             let taches = [];
             try {
-                // Chercher dans le modele Vue : Taches, ListeTaches, currentSalarie.Taches
+                // Methode 1: Chercher dans le modele Vue racine
                 const cs = vm.$data.currentSalarie || {};
                 const tSources = [cs.Taches, cs.ListeTaches, vm.$data.Taches, vm.$data.ListeTaches,
                                   vm.$data.model && vm.$data.model.Taches];
@@ -214,25 +214,40 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                         break;
                     }
                 }
-                // Fallback: chercher dans les props des composants Vue (ligne-horaire, vdp-plage-horaire, etc.)
+                // Methode 2: Parcourir l'arbre des composants Vue ($children recursif)
                 if (taches.length === 0) {
-                    document.querySelectorAll('*').forEach(el => {
+                    const searchChildren = (comp) => {
                         if (taches.length > 0) return;
-                        try {
-                            const v = el.__vue__;
-                            if (v && v.$props) {
-                                const ts = v.$props.taches || v.$props.tachesDispos ||
-                                           v.taches || v.listeTaches ||
-                                           (v.$data && v.$data.taches);
-                                if (ts && Array.isArray(ts) && ts.length > 0) {
-                                    for (const t of ts) {
-                                        const id = t.Id || t.id || t.IdTache;
-                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
-                                        if (id && lib) taches.push({id: id, label: lib});
-                                    }
+                        if (comp.$props) {
+                            const ts = comp.$props.taches || comp.$props.tachesDispos;
+                            if (ts && Array.isArray(ts) && ts.length > 0) {
+                                for (const t of ts) {
+                                    const id = t.Id || t.id || t.IdTache;
+                                    const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
+                                    if (id && lib) taches.push({id: id, label: lib});
                                 }
+                                return;
                             }
-                        } catch(x) {}
+                        }
+                        if (comp.$children) {
+                            for (const child of comp.$children) searchChildren(child);
+                        }
+                    };
+                    searchChildren(vm);
+                }
+                // Methode 3: Fallback DOM - chercher les <select> avec beaucoup d'options (page feuille de pointage)
+                if (taches.length === 0) {
+                    document.querySelectorAll('select').forEach(s => {
+                        if (taches.length > 0 || s.options.length < 4) return;
+                        // Verifier que ce n'est pas un select d'heures (options 00:00-23:45)
+                        if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
+                        for (let i = 0; i < s.options.length; i++) {
+                            const val = s.options[i].value;
+                            const txt = s.options[i].text.trim();
+                            if (val && txt && txt !== '--') {
+                                taches.push({id: parseInt(val) || val, label: txt});
+                            }
+                        }
                     });
                 }
                 // Deduplicate
