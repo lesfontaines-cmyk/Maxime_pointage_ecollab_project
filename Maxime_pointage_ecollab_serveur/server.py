@@ -164,7 +164,9 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                             const debM = String(deb%60).padStart(2,'0');
                             const finH = String(Math.floor(fin/60)).padStart(2,'0');
                             const finM = String(fin%60).padStart(2,'0');
-                            plages.push({debut: debH+':'+debM, fin: finH+':'+finM});
+                            const p = {debut: debH+':'+debM, fin: finH+':'+finM};
+                            if (h.IdTache) p.tache = h.IdTache;
+                            plages.push(p);
                         }
                     }
                 }
@@ -195,7 +197,53 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                 };
                 if (variables) days[dateKey].variables = variables;
             }
-            return {success: true, days: days, _debug_keys: debugKeys};
+            // Extraire la liste des taches disponibles
+            let taches = [];
+            try {
+                // Chercher dans le modele Vue : Taches, ListeTaches, currentSalarie.Taches
+                const cs = vm.$data.currentSalarie || {};
+                const tSources = [cs.Taches, cs.ListeTaches, vm.$data.Taches, vm.$data.ListeTaches,
+                                  vm.$data.model && vm.$data.model.Taches];
+                for (const src of tSources) {
+                    if (src && Array.isArray(src) && src.length > 0) {
+                        for (const t of src) {
+                            const id = t.Id || t.id || t.IdTache || t.idTache;
+                            const lib = t.Libelle || t.libelle || t.Label || t.label || t.Nom || t.nom || t.Designation || '';
+                            if (id && lib) taches.push({id: id, label: lib});
+                        }
+                        break;
+                    }
+                }
+                // Fallback: chercher dans les composants vdp-plage-horaire
+                if (taches.length === 0) {
+                    document.querySelectorAll('*').forEach(el => {
+                        try {
+                            const v = el.__vue__;
+                            if (v && v.$options && v.$options.name &&
+                                v.$options.name.toLowerCase().indexOf('plage') !== -1) {
+                                const ts = v.taches || v.listeTaches || v.$props.taches ||
+                                           (v.$data && v.$data.taches);
+                                if (ts && Array.isArray(ts) && ts.length > 0) {
+                                    for (const t of ts) {
+                                        const id = t.Id || t.id || t.IdTache;
+                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || '';
+                                        if (id && lib) taches.push({id: id, label: lib});
+                                    }
+                                }
+                            }
+                        } catch(x) {}
+                    });
+                }
+                // Deduplicate
+                const seen = {};
+                taches = taches.filter(t => {
+                    if (seen[t.id]) return false;
+                    seen[t.id] = true;
+                    return true;
+                });
+            } catch(e) {}
+
+            return {success: true, days: days, _debug_keys: debugKeys, taches: taches};
         """)
 
         if not result or result.get('error'):
@@ -508,7 +556,7 @@ def cloture_selenium(email, password, url, plages, date_str="", variables=None):
         time.sleep(2)
 
         # ── 5. Injection horaires via model.Jours ────────────────────────────
-        plages_min = [{"debut": to_minutes(p["debut"]), "fin": to_minutes(p["fin"])} for p in plages]
+        plages_min = [{"debut": to_minutes(p["debut"]), "fin": to_minutes(p["fin"]), "tache": p.get("tache", 0)} for p in plages]
         plages_json = json.dumps(plages_min)
 
         # Extraire jour et mois de la date
@@ -574,6 +622,7 @@ def cloture_selenium(email, password, url, plages, date_str="", variables=None):
                 for (let i = 0; i < pl.length; i++) {{
                     vm.$set(jour.Horaires[i], 'HeureDebut', pl[i].debut);
                     vm.$set(jour.Horaires[i], 'HeureFin', pl[i].fin);
+                    if (pl[i].tache) vm.$set(jour.Horaires[i], 'IdTache', pl[i].tache);
                 }}
             }}
 
