@@ -214,19 +214,20 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                         break;
                     }
                 }
-                // Fallback: chercher dans les composants vdp-plage-horaire
+                // Fallback: chercher dans les props des composants Vue (ligne-horaire, vdp-plage-horaire, etc.)
                 if (taches.length === 0) {
                     document.querySelectorAll('*').forEach(el => {
+                        if (taches.length > 0) return;
                         try {
                             const v = el.__vue__;
-                            if (v && v.$options && v.$options.name &&
-                                v.$options.name.toLowerCase().indexOf('plage') !== -1) {
-                                const ts = v.taches || v.listeTaches || v.$props.taches ||
+                            if (v && v.$props) {
+                                const ts = v.$props.taches || v.$props.tachesDispos ||
+                                           v.taches || v.listeTaches ||
                                            (v.$data && v.$data.taches);
                                 if (ts && Array.isArray(ts) && ts.length > 0) {
                                     for (const t of ts) {
                                         const id = t.Id || t.id || t.IdTache;
-                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || '';
+                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
                                         if (id && lib) taches.push({id: id, label: lib});
                                     }
                                 }
