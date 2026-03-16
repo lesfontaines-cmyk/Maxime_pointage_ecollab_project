@@ -227,6 +227,12 @@
     background-position: right 12px center;
   }
   .time-select:focus { border-color: var(--gold); background: var(--white); }
+  .tache-select {
+    font-family: var(--sans);
+    font-size: 14px;
+    text-align: left;
+    letter-spacing: 0.5px;
+  }
 
   .add-plage-btn {
     width: 100%;
@@ -420,6 +426,25 @@
   .pointage-plages-resume .resume-label { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--light); }
   .pointage-plages-resume .resume-value { font-family: var(--serif); font-size: 22px; color: var(--dark); margin-top: 4px; }
   .pointage-plages-resume .resume-detail { font-size: 13px; color: var(--light); margin-top: 4px; }
+  .time-field-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .time-field-wrap .time-select { width: 100%; }
+  .pointage-time-display {
+    flex: 1;
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--dark);
+    text-align: center;
+    padding: 6px 10px;
+  }
+  .pt-real { color: var(--light); font-size: 14px; }
+  .pt-retained { color: var(--gold); font-weight: 600; }
+  #pointagePlagesList .plage-card { padding: 10px 14px; margin-bottom: 8px; }
+  #pointagePlagesList .plage-card-head { margin-bottom: 6px; }
+  #pointagePlagesList .time-row { margin-bottom: 4px; }
   .btn-retour {
     display: block;
     width: calc(100% - 48px);
@@ -443,7 +468,7 @@
   /* --- ORNEMENT --- */
   .ornament {
     text-align: center;
-    padding: 4px 24px 20px;
+    padding: 10px 24px;
     color: var(--border);
     font-size: 20px;
     letter-spacing: 8px;
@@ -468,8 +493,8 @@
   /* --- VARIABLES --- */
   .variables-wrap {
     padding: 0 24px;
-    margin-top: 12px;
-    margin-bottom: 8px;
+    margin-top: 8px;
+    margin-bottom: 0;
   }
   .variables-toggle {
     width: 100%;
@@ -501,13 +526,14 @@
   .variables-body {
     overflow: hidden;
     max-height: 0;
-    transition: max-height .25s ease;
-    border: 1px solid var(--border);
-    border-top: none;
     border-radius: 0 0 4px 4px;
     background: var(--white);
   }
-  .variables-toggle.open + .variables-body { max-height: 120px; }
+  .variables-toggle.open + .variables-body {
+    max-height: 120px;
+    border: 1px solid var(--border);
+    border-top: none;
+  }
   .variables-toggle.open { border-radius: 4px 4px 0 0; border-bottom: none; }
   .variables-body-inner {
     padding: 12px 18px;
@@ -1379,15 +1405,12 @@
   </div>
 </div>
 
-<div style="padding:0 24px;margin-top:8px">
-  <button class="btn-reset" id="btnResetP" onclick="reinitialiser()">&#x21BA; Reinitialiser la journee</button>
+<!-- PLAGES DU JOUR (POINTAGE) -->
+<div class="section-head" style="padding-bottom:8px">
+  <div class="section-title">Plages horaires</div>
+  <div class="total-hint" id="totalHintP">--</div>
 </div>
-
-<!-- RESUME PLAGES -->
-<div class="pointage-plages-resume" id="pointageResume" style="display:none">
-  <div class="resume-label">Plages du jour</div>
-  <div class="resume-value" id="pointageTotal">--</div>
-  <div class="resume-detail" id="pointageDetail"></div>
+<div id="pointagePlagesList" class="plages-list">
 </div>
 
 <!-- VARIABLES (POINTAGE) -->
@@ -1410,22 +1433,16 @@
   </div>
 </div>
 
+<div style="padding:0 24px;margin-top:4px">
+  <button class="btn-reset" id="btnResetP" onclick="reinitialiser()">&#x21BA; Reinitialiser la journee</button>
+</div>
+
 <!-- ORNEMENT -->
 <div class="ornament">&middot; &middot; &middot;</div>
 
-<div style="height:24px"></div>
+<button class="btn-saisie-manuelle" style="margin:0 24px 10px;width:calc(100% - 48px)" onclick="showPage('main')">&#x270E; Saisie manuelle</button>
 
-<!-- HISTORIQUE -->
-<div class="section-head" style="padding-bottom:8px">
-  <div class="section-title">Historique</div>
-</div>
-<div class="history-wrap" id="historyList">
-  <div class="history-empty">Aucun pointage aujourd'hui</div>
-</div>
-
-<button class="btn-saisie-manuelle" onclick="showPage('main')">&#x270E; Saisie manuelle</button>
-
-<button class="btn-recap" onclick="_recapFrom='pointage';showPage('recap')">&#x1F4CB; Recap</button>
+<button class="btn-recap" style="margin:0 24px 24px;width:calc(100% - 48px)" onclick="_recapFrom='pointage';showPage('recap')">&#x1F4CB; Recap</button>
 
 </div><!-- /pointageScreen -->
 
@@ -1638,6 +1655,7 @@ let S   = { plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}], cl
 let _priseTsMs = null;
 let CFG = { email:'', password:'', url:'', server:'' };
 let DEFAULTS = [{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
+let TACHES = []; // [{id, label}] — liste des taches depuis eCollab
 
 function pad(n) { return String(n).padStart(2,'0'); }
 
@@ -1941,7 +1959,16 @@ function addPlage() { S.plages.push({debut:'',fin:''}); render(); save(); }
 function removePlage(i) {
   S.plages.splice(i,1); render(); save();
 }
-function setField(i,f,v) { S.plages[i][f]=v; render(); save(); }
+function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; render(); save(); }
+
+function genTacheOptions(selected) {
+  var html = '<option value="">— Aucune —</option>';
+  for (var t = 0; t < TACHES.length; t++) {
+    var sel = (TACHES[t].id == selected) ? ' selected' : '';
+    html += '<option value="'+TACHES[t].id+'"'+sel+'>'+TACHES[t].label+'</option>';
+  }
+  return html;
+}
 
 function renderPlages() {
   // Date selector
@@ -1951,10 +1978,15 @@ function renderPlages() {
   var dejaValide = _isJourValideEcollab();
   var disabledAttr = (dejaValide || S.cloture) ? ' disabled' : '';
   var opacityStyle = (dejaValide || S.cloture) ? ' style="opacity:0.5;pointer-events:none"' : '';
+  var hasTaches = TACHES.length > 0;
 
   document.getElementById('plagesList').innerHTML=S.plages.map(function(p,i){
     var label = S.plages.length>1 ? 'Plage '+(i+1) : 'Horaires';
     var delBtn = (!dejaValide && !S.cloture && i===S.plages.length-1) ? '<button class="plage-del-btn" onclick="removePlage('+i+')">Supprimer</button>' : '';
+    var tacheRow = hasTaches ? '<div class="time-row">'+
+        '<span class="time-row-label">Tache</span>'+
+        '<select class="time-select tache-select" onchange="setField('+i+',\'tache\',this.value)"'+disabledAttr+'>'+genTacheOptions(p.tache||'')+'</select>'+
+      '</div>' : '';
     return '<div class="plage-card"'+opacityStyle+'>'+
       '<div class="plage-card-head">'+
         '<span class="plage-label">'+label+'</span>'+
@@ -1968,6 +2000,7 @@ function renderPlages() {
         '<span class="time-row-label">Fin</span>'+
         '<select class="time-select" onchange="setField('+i+',\'fin\',this.value)"'+disabledAttr+'>'+genTimeOptions(p.fin)+'</select>'+
       '</div>'+
+      tacheRow+
     '</div>';
   }).join('');
 
@@ -2226,6 +2259,25 @@ function calcPointageTotal() {
   return {totalMin:totalMin,details:details};
 }
 
+function _buildHistoryMapping() {
+  // Associe chaque plage S.plages[i] à ses événements prise/fin de l'historique
+  var map = {};
+  var events = S.history.slice().reverse(); // plus ancien en premier
+  var plageIdx = 0;
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    if (ev.type === 'prise') {
+      if (!map[plageIdx]) map[plageIdx] = {};
+      map[plageIdx].prise = ev;
+    } else if (ev.type === 'fin') {
+      if (!map[plageIdx]) map[plageIdx] = {};
+      map[plageIdx].fin = ev;
+      plageIdx++;
+    }
+  }
+  return map;
+}
+
 function renderPointage() {
   // Statut
   var band=document.getElementById('statusBand');
@@ -2253,38 +2305,73 @@ function renderPointage() {
     else { cnp.textContent='Se connecte et saisit automatiquement dans Ecollaboratrice'; cnp.style.color=''; }
   }
 
-  // Resume plages (calcule depuis l'historique, pas depuis S.plages)
-  var r=calcPointageTotal();
-  var pr=document.getElementById('pointageResume');
-  if(pr){
-    if(r.totalMin>0){
-      pr.style.display='block';
-      var h=Math.floor(r.totalMin/60);var m=r.totalMin%60;
-      document.getElementById('pointageTotal').textContent=h+'h'+pad(m);
-      document.getElementById('pointageDetail').innerHTML=r.details.join(' | ');
-    } else { pr.style.display='none'; }
+  // Plages du jour (cartes comme saisie manuelle, avec info pointage)
+  var hasTaches = TACHES.length > 0;
+  var dis = dejaValidePt || S.cloture;
+  var disabledAttr = dis ? ' disabled' : '';
+
+  // Construire un mapping historique par plage pour afficher les heures réelles
+  var histByPlage = _buildHistoryMapping();
+
+  var plagesEl = document.getElementById('pointagePlagesList');
+  if (plagesEl) {
+    plagesEl.innerHTML = S.plages.map(function(p, i) {
+      var label = S.plages.length > 1 ? 'Plage ' + (i+1) : 'Horaires';
+      var hinfo = histByPlage[i];
+      var priseInfo = '';
+      var finInfo = '';
+      if (hinfo && hinfo.prise) {
+        priseInfo = '<span class="pointage-time-info">Pointage : ' + hinfo.prise.time +
+          (hinfo.prise.arrondi !== hinfo.prise.time ? ' → ' + hinfo.prise.arrondi : '') + '</span>';
+      }
+      if (hinfo && hinfo.fin) {
+        finInfo = '<span class="pointage-time-info">Pointage : ' + hinfo.fin.time +
+          (hinfo.fin.arrondi !== hinfo.fin.time ? ' → ' + hinfo.fin.arrondi : '') + '</span>';
+      }
+      // Formater : "08:02 → 08:00" ou juste "08:00"
+      var debutDisplay = '<span class="pt-retained">' + (p.debut || '--:--') + '</span>';
+      var finDisplay = '<span class="pt-retained">' + (p.fin || '--:--') + '</span>';
+      if (hinfo && hinfo.prise && hinfo.prise.time !== hinfo.prise.arrondi) {
+        debutDisplay = '<span class="pt-real">' + hinfo.prise.time + '</span> \u2192 <span class="pt-retained">' + hinfo.prise.arrondi + '</span>';
+      }
+      if (hinfo && hinfo.fin && hinfo.fin.time !== hinfo.fin.arrondi) {
+        finDisplay = '<span class="pt-real">' + hinfo.fin.time + '</span> \u2192 <span class="pt-retained">' + hinfo.fin.arrondi + '</span>';
+      }
+      var tacheRow = hasTaches ? '<div class="time-row">' +
+          '<span class="time-row-label">Tache</span>' +
+          '<select class="time-select tache-select" onchange="setField('+i+',\'tache\',this.value)"' + disabledAttr + '>' + genTacheOptions(p.tache||'') + '</select>' +
+        '</div>' : '';
+      return '<div class="plage-card"' + (dis ? ' style="opacity:0.5;pointer-events:none"' : '') + '>' +
+        '<div class="plage-card-head">' +
+          '<span class="plage-label">' + label + '</span>' +
+        '</div>' +
+        '<div class="time-row">' +
+          '<span class="time-row-label">Debut</span>' +
+          '<span class="pointage-time-display">' + debutDisplay + '</span>' +
+        '</div>' +
+        '<div class="time-row">' +
+          '<span class="time-row-label">Fin</span>' +
+          '<span class="pointage-time-display">' + finDisplay + '</span>' +
+        '</div>' +
+        tacheRow +
+      '</div>';
+    }).join('');
+  }
+
+  // Total hint
+  var r = calcTotal();
+  var thp = document.getElementById('totalHintP');
+  if (thp) {
+    if (r.totalMin > 0) {
+      var h = Math.floor(r.totalMin/60); var m = r.totalMin%60;
+      thp.textContent = 'Total : ' + h + 'h' + pad(m);
+    } else {
+      thp.textContent = '--';
+    }
   }
 
   // Variables
   renderVariables();
-
-  // Historique
-  renderHistory();
-}
-
-function renderHistory() {
-  var el=document.getElementById('historyList');
-  if(!el)return;
-  if(!S.history.length){el.innerHTML='<div class="history-empty">Aucun pointage aujourd\'hui</div>';return;}
-  el.innerHTML=S.history.slice(0,12).reverse().map(function(h){
-    var cls=h.type==='prise'?'prise':(h.type==='fin'?'fin':'cloture');
-    var label=h.type==='prise'?'Prise de poste':(h.type==='fin'?'Fin de poste':'Clôture');
-    return '<div class="history-item">'+
-      '<div class="h-dot '+cls+'"></div>'+
-      '<div class="h-text"><div class="h-label">'+label+'</div>'+
-      '<div class="h-sub">Reel : '+h.time+(h.arrondi&&h.arrondi!==h.time?' → Arrondi : '+h.arrondi:'')+'</div></div>'+
-      '<div class="h-time">'+h.arrondi+'</div></div>';
-  }).join('');
 }
 
 // ======================================
@@ -2377,6 +2464,11 @@ function renderRecap(forceRefresh) {
   .then(function(data) {
     if (data.success && data.days) {
       if (data._debug_keys) console.log('[eCollab] Clés jour:', data._debug_keys);
+      // Stocker les taches disponibles
+      if (data.taches && data.taches.length) {
+        TACHES = data.taches;
+        try { localStorage.setItem('eco_taches', JSON.stringify(TACHES)); } catch(e) {}
+      }
       try {
         localStorage.setItem(cacheKey, JSON.stringify(data.days));
         localStorage.setItem(syncKey, new Date().toISOString());
@@ -2501,7 +2593,7 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
     var cls = 'recap-day-card';
     if (isProvisoire) cls += ' provisoire';
     else if (travaille) cls += ' cloture';
-    if (!travaille && !isToday) cls += ' empty';
+    if (!travaille && !valideSalarie && !valideEntreprise && !isToday) cls += ' empty';
     if (isToday) cls += ' today';
 
     var badge = '';
@@ -2709,7 +2801,7 @@ function cloturerJournee() {
 
   var plages=S.plages
     .filter(function(p){return p.debut&&p.fin;})
-    .map(function(p){return {debut:p.debut,fin:p.fin};});
+    .map(function(p){var o={debut:p.debut,fin:p.fin}; if(p.tache) o.tache=p.tache; return o;});
 
   var pointageDate = S.date || todayISO();
 
@@ -2972,6 +3064,11 @@ function _backgroundRecapRefresh() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success && data.days) {
+      // Stocker les taches disponibles
+      if (data.taches && data.taches.length) {
+        TACHES = data.taches;
+        try { localStorage.setItem('eco_taches', JSON.stringify(TACHES)); } catch(e) {}
+      }
       try {
         localStorage.setItem(cacheKey, JSON.stringify(data.days));
         localStorage.setItem(syncKey, new Date().toISOString());
@@ -2994,7 +3091,7 @@ function _backgroundRecapRefresh() {
       if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
         // Charger les plages eCollab dans l'état local
         if (dayInfo.plages && dayInfo.plages.length > 0) {
-          S.plages = dayInfo.plages.map(function(p) { return {debut: p.debut, fin: p.fin}; });
+          S.plages = dayInfo.plages.map(function(p) { var o = {debut: p.debut, fin: p.fin}; if (p.tache) o.tache = p.tache; return o; });
         }
         S.cloture = true;
         save();
@@ -3046,6 +3143,7 @@ function forceAppUpdate() {
 // ======================================
 function init() {
   loadSettings();
+  try { TACHES = JSON.parse(localStorage.getItem('eco_taches')) || []; } catch(e) { TACHES = []; }
   var currentUser=localStorage.getItem('eco_current_user')||'';
   document.getElementById('loadingCover').style.display='none';
 
