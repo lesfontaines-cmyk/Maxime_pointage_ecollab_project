@@ -197,114 +197,12 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                 };
                 if (variables) days[dateKey].variables = variables;
             }
-            // Extraire la liste des taches disponibles
-            let taches = [];
-            try {
-                // Methode 1: Chercher dans le modele Vue racine
-                const cs = vm.$data.currentSalarie || {};
-                const tSources = [cs.Taches, cs.ListeTaches, vm.$data.Taches, vm.$data.ListeTaches,
-                                  vm.$data.model && vm.$data.model.Taches];
-                for (const src of tSources) {
-                    if (src && Array.isArray(src) && src.length > 0) {
-                        for (const t of src) {
-                            const id = t.Id || t.id || t.IdTache || t.idTache;
-                            const lib = t.Libelle || t.libelle || t.Label || t.label || t.Nom || t.nom || t.Designation || '';
-                            if (id && lib) taches.push({id: id, label: lib});
-                        }
-                        break;
-                    }
-                }
-                // Methode 2: Parcourir l'arbre des composants Vue ($children recursif)
-                if (taches.length === 0) {
-                    const searchChildren = (comp) => {
-                        if (taches.length > 0) return;
-                        if (comp.$props) {
-                            const ts = comp.$props.taches || comp.$props.tachesDispos;
-                            if (ts && Array.isArray(ts) && ts.length > 0) {
-                                for (const t of ts) {
-                                    const id = t.Id || t.id || t.IdTache;
-                                    const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
-                                    if (id && lib) taches.push({id: id, label: lib});
-                                }
-                                return;
-                            }
-                        }
-                        if (comp.$children) {
-                            for (const child of comp.$children) searchChildren(child);
-                        }
-                    };
-                    searchChildren(vm);
-                }
-                // Methode 3: Fallback DOM - chercher les <select> avec beaucoup d'options (page feuille de pointage)
-                if (taches.length === 0) {
-                    document.querySelectorAll('select').forEach(s => {
-                        if (taches.length > 0 || s.options.length < 4) return;
-                        // Verifier que ce n'est pas un select d'heures (options 00:00-23:45)
-                        if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
-                        for (let i = 0; i < s.options.length; i++) {
-                            const val = s.options[i].value;
-                            const txt = s.options[i].text.trim();
-                            if (val && txt && txt !== '--') {
-                                taches.push({id: parseInt(val) || val, label: txt});
-                            }
-                        }
-                    });
-                }
-                // Deduplicate
-                const seen = {};
-                taches = taches.filter(t => {
-                    if (seen[t.id]) return false;
-                    seen[t.id] = true;
-                    return true;
-                });
-            } catch(e) {}
-
-            return {success: true, days: days, _debug_keys: debugKeys, taches: taches};
+            return {success: true, days: days, _debug_keys: debugKeys};
         """)
 
         if not result or result.get('error'):
             driver.quit()
             return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None, []
-
-        # ── Si pas de taches trouvées, aller sur Feuille de pointage pour les extraire ──
-        if not result.get('taches'):
-            try:
-                # Cliquer sur l'onglet "Feuille de pointage"
-                driver.execute_script("""
-                    var links = document.querySelectorAll('a');
-                    for (var i = 0; i < links.length; i++) {
-                        if (links[i].textContent.trim() === 'Feuille de pointage') {
-                            links[i].click();
-                            break;
-                        }
-                    }
-                """)
-                import time as _time
-                _time.sleep(3)
-                # Extraire les taches depuis les <select> HTML de la feuille de pointage
-                taches_result = driver.execute_script("""
-                    var taches = [];
-                    document.querySelectorAll('select').forEach(function(s) {
-                        if (taches.length > 0 || s.options.length < 4) return;
-                        // Ignorer les selects d'heures (options au format HH:MM)
-                        if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
-                        for (var i = 0; i < s.options.length; i++) {
-                            var val = s.options[i].value;
-                            var txt = s.options[i].text.trim();
-                            if (val && txt && txt !== '--') {
-                                taches.push({id: parseInt(val) || val, label: txt});
-                            }
-                        }
-                    });
-                    // Deduplicate
-                    var seen = {};
-                    return taches.filter(function(t) { if (seen[t.id]) return false; seen[t.id] = true; return true; });
-                """)
-                if taches_result and len(taches_result) > 0:
-                    result['taches'] = taches_result
-                    print(f"  [taches] Extraites depuis Feuille de pointage : {len(taches_result)} taches")
-            except Exception as e_taches:
-                print(f"  [taches] Extraction Feuille de pointage echouee (non bloquant) : {e_taches}")
 
         # ── Extraction des données Récapitulatif (optionnel) ──
         recap_data = None
@@ -491,6 +389,48 @@ def fetch_ecollab_days(email, password, url, date_str=""):
                     recap_data.pop(k, None)
         except Exception as e_recap:
             print(f"  [recap] Extraction récap échouée (non bloquant) : {e_recap}")
+
+        # ── Extraire les taches depuis le modele Vue (vm.taches) ──
+        try:
+            print("  [taches] Extraction depuis Vue model...", flush=True)
+            taches_result = driver.execute_script("""
+                // Chercher l'instance Vue sur la page (SaisieRapide ou IndexSalarie)
+                var vueEl = document.querySelector('#vueSaisieRapide') || document.querySelector('#variable-paie');
+                if (!vueEl) {
+                    var divs = document.querySelectorAll('div');
+                    for (var i = 0; i < divs.length; i++) {
+                        try { if (divs[i].__vue__ && (divs[i].__vue__.taches || divs[i].__vue__.TachesDisponibles || divs[i].__vue__.TachesDispos)) { vueEl = divs[i]; break; } } catch(e) {}
+                    }
+                }
+                if (!vueEl || !vueEl.__vue__) return {error: 'no vue element'};
+                var vm = vueEl.__vue__;
+                // vm.taches peut etre un Array ou un Object — normaliser
+                var src = vm.taches || vm.TachesDisponibles || vm.TachesDispos || vm.$root.taches || vm.$root.TachesDisponibles || vm.$root.TachesDispos;
+                if (!src) return {error: 'no taches property', keys: Object.keys(vm.$data).join(',')};
+                // Convertir en array si c'est un objet
+                var items = Array.isArray(src) ? src : Object.values(src);
+                if (!items || !items.length) return {error: 'empty taches', type: typeof src, isArray: Array.isArray(src)};
+                var taches = [];
+                for (var i = 0; i < items.length; i++) {
+                    var t = items[i];
+                    if (typeof t === 'object' && t !== null) {
+                        var id = t.Id || t.id || t.IdTache;
+                        var lib = t.Libelle || t.libelle || t.Label || t.label || t.Nom || t.Designation || '';
+                        if (id && lib) taches.push({id: id, label: lib});
+                    }
+                }
+                var seen = {};
+                return taches.filter(function(t) { if (seen[t.id]) return false; seen[t.id] = true; return true; });
+            """)
+            if isinstance(taches_result, dict) and 'error' in taches_result:
+                print(f"  [taches] Erreur JS: {taches_result}", flush=True)
+            elif isinstance(taches_result, list) and len(taches_result) > 0:
+                result['taches'] = taches_result
+                print(f"  [taches] OK : {len(taches_result)} taches", flush=True)
+            else:
+                print(f"  [taches] Resultat inattendu: {taches_result}", flush=True)
+        except Exception as e_taches:
+            print(f"  [taches] Extraction echouee : {e_taches}", flush=True)
 
         driver.quit()
 
