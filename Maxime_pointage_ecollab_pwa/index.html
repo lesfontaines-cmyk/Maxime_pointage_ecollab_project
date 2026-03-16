@@ -1272,6 +1272,9 @@
   }
   .recap-month-day-row.empty { opacity: 0.4; }
   .recap-month-day-row.today { font-weight: 500; }
+  .recap-month-day-row.cloture { border-left: 3px solid #2e7d32; padding-left: 6px; }
+  .recap-month-day-row.provisoire { border-left: 3px solid var(--gold-lt); padding-left: 6px; opacity: .65; }
+  .recap-month-day-badge { font-size: 11px; margin-left: 4px; white-space: nowrap; }
   .recap-month-day-name { color: var(--dark); }
   .recap-month-day-plages { color: var(--light); font-size: 12px; flex: 1; text-align: center; margin: 0 8px; }
   .recap-month-day-hours {
@@ -2764,9 +2767,22 @@ function _renderRecapMonth(year, month, today, ecollabDays) {
       monthTotalMin += dayMin;
 
       var isToday = (dayStr === today);
+      var valideEntreprise = info && info.valideEntreprise;
+      var valideSalarie = info && info.valideSalarie;
+      var isProvisoire = info && info.provisoire;
+      var travaille = info && info.travaille;
+
       var rowCls = 'recap-month-day-row';
       if (dayMin === 0 && !isToday) rowCls += ' empty';
       if (isToday) rowCls += ' today';
+      if (valideEntreprise || valideSalarie) rowCls += ' cloture';
+      else if (isProvisoire) rowCls += ' provisoire';
+      else if (travaille) rowCls += ' cloture';
+
+      var badge = '';
+      if (valideEntreprise) badge = '<span class="recap-month-day-badge">✅</span>';
+      else if (valideSalarie) badge = '<span class="recap-month-day-badge">✅</span>';
+      else if (isProvisoire) badge = '<span class="recap-month-day-badge">⏳</span>';
 
       var plagesStr = '';
       if (info && info.plages) {
@@ -2777,7 +2793,7 @@ function _renderRecapMonth(year, month, today, ecollabDays) {
       dayRows += '<div class="' + rowCls + '">';
       dayRows += '<span class="recap-month-day-name">' + dayName + '</span>';
       dayRows += '<span class="recap-month-day-plages">' + plagesStr + '</span>';
-      dayRows += '<span class="recap-month-day-hours">' + _fmtMinutes(dayMin) + '</span>';
+      dayRows += '<span class="recap-month-day-hours">' + _fmtMinutes(dayMin) + badge + '</span>';
       dayRows += '</div>';
     });
 
