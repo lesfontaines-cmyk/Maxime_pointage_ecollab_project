@@ -1956,11 +1956,19 @@ function genTimeOptions(val) {
 // ======================================
 // PLAGES
 // ======================================
-function addPlage() { S.plages.push({debut:'',fin:''}); render(); save(); }
-function removePlage(i) {
-  S.plages.splice(i,1); render(); save();
+function _syncEnPosteFromPlages() {
+  var open = false;
+  for (var i = 0; i < S.plages.length; i++) {
+    if (S.plages[i].debut && !S.plages[i].fin) { open = true; break; }
+  }
+  S.enPoste = open;
+  if (!open) _priseTsMs = null;
 }
-function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; render(); save(); }
+function addPlage() { S.plages.push({debut:'',fin:''}); _syncEnPosteFromPlages(); render(); save(); }
+function removePlage(i) {
+  S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); save();
+}
+function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; _syncEnPosteFromPlages(); render(); save(); }
 
 function genTacheOptions(selected) {
   var html = '<option value="">— Aucune —</option>';
