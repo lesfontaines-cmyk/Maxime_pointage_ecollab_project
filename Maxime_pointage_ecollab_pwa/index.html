@@ -72,6 +72,7 @@
     color: var(--light);
     margin-top: 5px;
   }
+  .settings-btn, .sync-btn, .logout-btn { transition: top .3s ease; }
   .settings-btn {
     position: fixed;
     top: 16px; right: 16px;
@@ -97,13 +98,52 @@
     background: var(--white);
     color: var(--light);
     cursor: pointer;
-    display: none; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     font-size: 15px;
     transition: all .2s;
   }
   .sync-btn:hover { border-color: var(--gold); color: var(--gold); }
   .sync-btn.syncing svg { animation: spin 1s linear infinite; }
   @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  /* --- SYNC INDICATOR BANNER --- */
+  .sync-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 9999;
+    height: 0;
+    overflow: hidden;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    transition: height .3s ease, opacity .3s ease;
+    opacity: 0;
+  }
+  .sync-banner.visible {
+    height: 32px;
+    opacity: 1;
+  }
+  .sync-banner-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 32px;
+    font-size: 13px;
+    color: var(--dark);
+  }
+  .sync-banner-content svg { animation: spin 1.2s linear infinite; }
+  .sync-banner-bar {
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 2px;
+    background: var(--gold);
+    animation: sync-progress 2s ease-in-out infinite;
+  }
+  @keyframes sync-progress {
+    0% { left: 0; width: 0; }
+    50% { left: 0; width: 70%; }
+    100% { left: 100%; width: 0; }
+  }
 
   /* --- DATE SELECTOR --- */
   .date-section {
@@ -199,6 +239,7 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 10px;
+    overflow: hidden;
   }
   .time-row:last-child { margin-bottom: 0; }
   .time-row-label {
@@ -235,9 +276,11 @@
     text-align: left;
     letter-spacing: 0.5px;
     min-width: 0;
+    max-width: calc(100% - 48px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-sizing: border-box;
   }
 
   .add-plage-btn {
@@ -1356,6 +1399,15 @@
 </div>
 </div>
 
+<!-- SYNC BANNER (global) -->
+<div id="syncBanner" class="sync-banner">
+  <div class="sync-banner-content">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></svg>
+    Synchronisation eCollab...
+  </div>
+  <div class="sync-banner-bar"></div>
+</div>
+
 <!-- PAGE POINTAGE (principale) -->
 <div id="pointageScreen" style="display:none">
 
@@ -1370,6 +1422,8 @@
 <button class="logout-btn" onclick="logout()" title="Deconnexion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 
 <button class="settings-btn" onclick="openSettings()" title="Paramètres">&#x2699;</button>
+
+<button class="sync-btn" id="btnSync" onclick="_backgroundRecapRefresh(true)" title="Synchroniser eCollab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></svg></button>
 
 <!-- HORLOGE -->
 <div class="time-section">
@@ -1419,7 +1473,6 @@
 </div>
 <div id="pointagePlagesList" class="plages-list">
 </div>
-
 <!-- VARIABLES (POINTAGE) -->
 <div class="variables-wrap" id="variablesSectionP">
   <button class="variables-toggle" id="varToggleP" type="button" onclick="toggleVariables('varToggleP')">
@@ -1486,6 +1539,7 @@
 </div>
 <div class="plages-wrap" id="plagesList"></div>
 <div style="padding:0 24px">
+  <button id="btnLoadDefaultsSaisie" class="add-plage-btn" onclick="loadDefaultPlages()" style="display:none;margin-bottom:8px">Charger les horaires par defaut</button>
   <button class="add-plage-btn" onclick="addPlage()">+ Ajouter une plage</button>
 </div>
 
@@ -1658,7 +1712,7 @@
 // ======================================
 // STATE
 // ======================================
-let S   = { plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}], cloture:false, date:'', enPoste:false, history:[], variables:{astreinte:0,indemniteEloignement:0} };
+let S   = { plages:[], cloture:false, date:'', enPoste:false, history:[], variables:{astreinte:0,indemniteEloignement:0} };
 let _priseTsMs = null;
 let CFG = { email:'', password:'', url:'', server:'' };
 let DEFAULTS = [{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
@@ -1700,7 +1754,7 @@ function loadState() {
   var d=null;
   try{d=JSON.parse(localStorage.getItem(storKey())||'null');}catch(e){}
   if(!d)try{d=JSON.parse(sessionStorage.getItem(storKey())||'null');}catch(e){}
-  if(d){ S.plages=d.plages||getDefaultPlages(); S.cloture=d.cloture||false; S.date=d.date||''; S.enPoste=d.enPoste||false; S.history=d.history||[]; S.priseTsMs=d.priseTsMs||null; S.variables=d.variables||{astreinte:0,indemniteEloignement:0}; }
+  if(d){ S.plages=d.plages||[]; S.cloture=d.cloture||false; S.date=d.date||''; S.enPoste=d.enPoste||false; S.history=d.history||[]; S.priseTsMs=d.priseTsMs||null; S.variables=d.variables||{astreinte:0,indemniteEloignement:0}; }
   if(S.enPoste){ _priseTsMs=S.priseTsMs||Date.now(); }
   // Vérifier le cache eCollab : si le jour est déjà validé, bloquer immédiatement
   _applyEcollabCacheBlock();
@@ -1744,7 +1798,7 @@ function loadStateWithServerSync() {
     var remoteHasActivity=remote.history&&remote.history.length>0;
     if(!localHasActivity&&remoteHasActivity){
       // Remote has data we don't have locally — adopt it
-      S.plages=remote.plages||getDefaultPlages();
+      S.plages=remote.plages||[];
       S.cloture=remote.cloture||false;
       S.enPoste=remote.enPoste||false;
       S.history=remote.history||[];
@@ -1755,7 +1809,7 @@ function loadStateWithServerSync() {
       toast('Pointage en cours recupere depuis un autre appareil','info');
     } else if(localHasActivity&&remoteHasActivity&&remote.history.length>S.history.length){
       // Remote has more events — use it
-      S.plages=remote.plages||getDefaultPlages();
+      S.plages=remote.plages||[];
       S.cloture=remote.cloture||false;
       S.enPoste=remote.enPoste||false;
       S.history=remote.history||[];
@@ -1781,7 +1835,7 @@ function refreshFromServer() {
     var localCount=(S.history&&S.history.length)||0;
     var remoteCount=(remote.history&&remote.history.length)||0;
     if(remoteCount>localCount || (remoteCount>0 && localCount===0)){
-      S.plages=remote.plages||getDefaultPlages();
+      S.plages=remote.plages||[];
       S.cloture=remote.cloture||false;
       S.enPoste=remote.enPoste||false;
       S.history=remote.history||[];
@@ -1798,7 +1852,10 @@ function refreshFromServer() {
 
 // Auto-sync quand l'app redevient visible (changement d'onglet/app)
 document.addEventListener('visibilitychange', function() {
-  if(!document.hidden && CFG.server && CFG.email) refreshFromServer();
+  if(!document.hidden && CFG.server && CFG.email) {
+    refreshFromServer();
+    _backgroundRecapRefresh();
+  }
 });
 // Auto-sync toutes les 2 minutes
 setInterval(function() {
@@ -1932,7 +1989,7 @@ function setDate(v) {
   save();
   // Switch day
   S.date=v;
-  S.plages=getDefaultPlages();
+  S.plages=[];
   S.cloture=false;
   // Try to load existing data for that day
   loadState();
@@ -1968,13 +2025,14 @@ function _syncEnPosteFromPlages() {
     if (S.plages[i].debut && !S.plages[i].fin) { open = true; break; }
   }
   S.enPoste = open;
+  if (open && !_priseTsMs) _priseTsMs = Date.now();
   if (!open) _priseTsMs = null;
 }
-function addPlage() { S.plages.push({debut:'',fin:''}); _syncEnPosteFromPlages(); render(); save(); }
+function addPlage() { S.plages.push({debut:'',fin:''}); _syncEnPosteFromPlages(); render(); renderPointage(); save(); }
 function removePlage(i) {
-  S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); save();
+  S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); renderPointage(); save();
 }
-function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; _syncEnPosteFromPlages(); render(); save(); }
+function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; _syncEnPosteFromPlages(); render(); renderPointage(); save(); }
 
 function genTacheOptions(selected) {
   var html = '<option value="">— Aucune —</option>';
@@ -2020,6 +2078,10 @@ function renderPlages() {
   // Masquer le bouton ajouter si jour validé/clôturé
   var addBtn = document.querySelector('.add-plage-btn');
   if (addBtn) addBtn.style.display = (dejaValide || S.cloture) ? 'none' : '';
+
+  // Bouton charger horaires par défaut (saisie manuelle)
+  var blds = document.getElementById('btnLoadDefaultsSaisie');
+  if (blds) blds.style.display = (!S.plages || S.plages.length === 0) && !dejaValide && !S.cloture ? '' : 'none';
 }
 
 // ======================================
@@ -2155,7 +2217,7 @@ var _reinitT=0;
 function reinitialiser() {
   if(Date.now()-_reinitT>3000){_reinitT=Date.now();toast('Appuyez à nouveau pour confirmer','warning');return;}
   _reinitT=0;
-  S.plages=getDefaultPlages();
+  S.plages=[];
   S.cloture=false;
   S.enPoste=false;
   S.history=[];
@@ -2212,7 +2274,7 @@ function _checkDayChange() {
     // Le jour a changé — sauvegarder l'ancien state puis réinitialiser pour le nouveau jour
     save(); // sauvegarde l'ancien jour
     S.date = today;
-    S.plages = getDefaultPlages();
+    S.plages = [];
     S.cloture = false;
     S.enPoste = false;
     S.history = [];
@@ -2234,11 +2296,20 @@ function pointePrise() {
   var h=nowHHMM();
   // Premier pointage auto : vider les plages par defaut
   if(!S.history.length) S.plages=[];
-  S.plages.push({debut:arrondiSup(h),fin:''});
+  // Chercher une plage existante sans debut (créée manuellement)
+  var found = -1;
+  for (var i = S.plages.length - 1; i >= 0; i--) {
+    if (!S.plages[i].debut && !S.plages[i].fin) { found = i; break; }
+  }
+  if (found >= 0) {
+    S.plages[found].debut = arrondiSup(h);
+  } else {
+    S.plages.push({debut:arrondiSup(h),fin:''});
+  }
   S.enPoste=true;
   _priseTsMs=Date.now();
   S.history.unshift({type:'prise',time:h,arrondi:arrondiSup(h)});
-  save(); syncStateToServer(); renderPointage();
+  save(); syncStateToServer(); renderPointage(); render();
   toast('Prise à '+h+' (comptabilisé '+arrondiSup(h)+')','success');
 }
 
@@ -2251,7 +2322,7 @@ function pointeFin() {
   S.enPoste=false;
   _priseTsMs=null;
   S.history.unshift({type:'fin',time:h,arrondi:arrondiInf(h)});
-  save(); syncStateToServer(); renderPointage();
+  save(); syncStateToServer(); renderPointage(); render();
   toast('Fin à '+h+' (comptabilisé '+arrondiInf(h)+')','info');
 }
 
@@ -2273,19 +2344,29 @@ function calcPointageTotal() {
 }
 
 function _buildHistoryMapping() {
-  // Associe chaque plage S.plages[i] à ses événements prise/fin de l'historique
+  // Associe chaque plage S.plages[i] à ses événements prise/fin par valeur de temps
   var map = {};
   var events = S.history.slice().reverse(); // plus ancien en premier
-  var plageIdx = 0;
   for (var i = 0; i < events.length; i++) {
     var ev = events[i];
     if (ev.type === 'prise') {
-      if (!map[plageIdx]) map[plageIdx] = {};
-      map[plageIdx].prise = ev;
+      // Trouver la plage dont le debut correspond à l'arrondi
+      for (var j = 0; j < S.plages.length; j++) {
+        if (S.plages[j].debut === ev.arrondi && (!map[j] || !map[j].prise)) {
+          if (!map[j]) map[j] = {};
+          map[j].prise = ev;
+          break;
+        }
+      }
     } else if (ev.type === 'fin') {
-      if (!map[plageIdx]) map[plageIdx] = {};
-      map[plageIdx].fin = ev;
-      plageIdx++;
+      // Trouver la plage dont la fin correspond à l'arrondi
+      for (var j = 0; j < S.plages.length; j++) {
+        if (S.plages[j].fin === ev.arrondi && (!map[j] || !map[j].fin)) {
+          if (!map[j]) map[j] = {};
+          map[j].fin = ev;
+          break;
+        }
+      }
     }
   }
   return map;
@@ -2384,6 +2465,11 @@ function renderPointage() {
 
   // Variables
   renderVariables();
+}
+
+function loadDefaultPlages() {
+  S.plages = getDefaultPlages();
+  save(); renderPointage(); render();
 }
 
 // ======================================
@@ -2998,7 +3084,7 @@ function logout() {
   CFG.email='';
   CFG.password='';
   try{localStorage.removeItem('eco_current_user');}catch(e){}
-  S={plages:[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}],cloture:false,date:''};
+  S={plages:[],cloture:false,date:''};
   DEFAULTS=[{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
   document.getElementById('loginEmail').value='';
   document.getElementById('loginPassword').value='';
@@ -3053,11 +3139,50 @@ function removeDefaultPlage(i) {
 function setDefaultField(i,f,v) { DEFAULTS[i][f]=v; }
 
 // ======================================
+// SYNC INDICATOR
+// ======================================
+var _syncActive = false;
+var _lastSyncTime = 0;
+var SYNC_COOLDOWN = 5 * 60 * 1000; // 5 minutes entre chaque sync auto
+function _setSyncOffset(on) {
+  var offset = on ? '48px' : '16px';
+  document.body.style.paddingTop = on ? '32px' : '';
+  document.querySelectorAll('.logout-btn, .settings-btn, .sync-btn').forEach(function(el) {
+    el.style.top = offset;
+  });
+}
+function showSyncIndicator() {
+  _syncActive = true;
+  var banner = document.getElementById('syncBanner');
+  var btn = document.getElementById('btnSync');
+  if (banner) banner.classList.add('visible');
+  if (btn) btn.classList.add('syncing');
+  _setSyncOffset(true);
+}
+function hideSyncIndicator(success) {
+  _syncActive = false;
+  var banner = document.getElementById('syncBanner');
+  var btn = document.getElementById('btnSync');
+  if (banner) banner.classList.remove('visible');
+  if (btn) btn.classList.remove('syncing');
+  _setSyncOffset(false);
+}
+
+// ======================================
 // BACKGROUND RECAP REFRESH
 // ======================================
-function _backgroundRecapRefresh() {
+function _backgroundRecapRefresh(force) {
   var server = CFG.server || localStorage.getItem('eco_server') || '';
-  if (!server || !CFG.email || !CFG.password || !CFG.url) return;
+  if (!server || !CFG.email || !CFG.password || !CFG.url) {
+    toast('Connexion requise pour synchroniser','warning');
+    return;
+  }
+  // Cooldown : pas de sync auto si la dernière date de moins de 5 min
+  if (!force && _syncActive) return;
+  if (!force && (Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
+  _lastSyncTime = Date.now();
+
+  showSyncIndicator();
 
   var currentDate = S.date || todayISO();
   var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
@@ -3075,6 +3200,7 @@ function _backgroundRecapRefresh() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
+    hideSyncIndicator(true);
     if (data.success && data.days) {
       // Stocker les taches disponibles et rafraîchir les plages
       if (data.taches && data.taches.length) {
@@ -3113,9 +3239,15 @@ function _backgroundRecapRefresh() {
       // Mettre à jour toute l'UI (Horaires + Pointage)
       updateUI();
       renderPointage();
+      toast('Donnees eCollab synchronisees','success');
+    } else {
+      toast('Sync eCollab : aucune donnee','warning');
     }
   })
-  .catch(function() { /* silencieux */ });
+  .catch(function() {
+    hideSyncIndicator(false);
+    toast('Sync eCollab echouee','error');
+  });
 }
 
 // ======================================

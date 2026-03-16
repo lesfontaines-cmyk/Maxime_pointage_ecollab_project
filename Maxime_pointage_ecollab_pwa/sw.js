@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '3.5.1';
+var APP_VERSION = '3.7.1';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
