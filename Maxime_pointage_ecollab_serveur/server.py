@@ -266,59 +266,45 @@ def fetch_ecollab_days(email, password, url, date_str=""):
             driver.quit()
             return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None, []
 
-        # ── Si pas de taches trouvées, cliquer sur une semaine pour charger les composants ──
+        # ── Si pas de taches trouvées, aller sur Feuille de pointage pour les extraire ──
         if not result.get('taches'):
             try:
+                # Cliquer sur l'onglet "Feuille de pointage"
                 driver.execute_script("""
-                    // Cliquer sur la premiere semaine (list-group-item) pour rendre les composants horaires
-                    var items = document.querySelectorAll('.list-group.selectable-item .list-group-item');
-                    if (items.length > 0) items[0].click();
+                    var links = document.querySelectorAll('a');
+                    for (var i = 0; i < links.length; i++) {
+                        if (links[i].textContent.trim() === 'Feuille de pointage') {
+                            links[i].click();
+                            break;
+                        }
+                    }
                 """)
                 import time as _time
-                _time.sleep(2)
-                # Re-extraire les taches depuis les composants maintenant rendus
+                _time.sleep(3)
+                # Extraire les taches depuis les <select> HTML de la feuille de pointage
                 taches_result = driver.execute_script("""
-                    let taches = [];
-                    // Chercher dans les props des composants Vue rendus
-                    document.querySelectorAll('*').forEach(el => {
-                        if (taches.length > 0) return;
-                        try {
-                            const v = el.__vue__;
-                            if (v && v.$props) {
-                                const ts = v.$props.taches || v.$props.tachesDispos;
-                                if (ts && Array.isArray(ts) && ts.length > 0) {
-                                    for (const t of ts) {
-                                        const id = t.Id || t.id || t.IdTache;
-                                        const lib = t.Libelle || t.libelle || t.Label || t.Nom || t.Designation || '';
-                                        if (id && lib) taches.push({id: id, label: lib});
-                                    }
-                                }
+                    var taches = [];
+                    document.querySelectorAll('select').forEach(function(s) {
+                        if (taches.length > 0 || s.options.length < 4) return;
+                        // Ignorer les selects d'heures (options au format HH:MM)
+                        if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
+                        for (var i = 0; i < s.options.length; i++) {
+                            var val = s.options[i].value;
+                            var txt = s.options[i].text.trim();
+                            if (val && txt && txt !== '--') {
+                                taches.push({id: parseInt(val) || val, label: txt});
                             }
-                        } catch(x) {}
+                        }
                     });
-                    // Fallback: extraire depuis les <select> HTML
-                    if (taches.length === 0) {
-                        document.querySelectorAll('select').forEach(s => {
-                            if (taches.length > 0 || s.options.length < 4) return;
-                            if (s.options[1] && /^[0-9]{2}:[0-9]{2}$/.test(s.options[1].text)) return;
-                            for (let i = 0; i < s.options.length; i++) {
-                                const val = s.options[i].value;
-                                const txt = s.options[i].text.trim();
-                                if (val && txt && txt !== '--') {
-                                    taches.push({id: parseInt(val) || val, label: txt});
-                                }
-                            }
-                        });
-                    }
                     // Deduplicate
-                    const seen = {};
-                    return taches.filter(t => { if (seen[t.id]) return false; seen[t.id] = true; return true; });
+                    var seen = {};
+                    return taches.filter(function(t) { if (seen[t.id]) return false; seen[t.id] = true; return true; });
                 """)
                 if taches_result and len(taches_result) > 0:
                     result['taches'] = taches_result
-                    print(f"  [taches] Extraites après clic semaine : {len(taches_result)} tâches")
+                    print(f"  [taches] Extraites depuis Feuille de pointage : {len(taches_result)} taches")
             except Exception as e_taches:
-                print(f"  [taches] Extraction après clic échouée (non bloquant) : {e_taches}")
+                print(f"  [taches] Extraction Feuille de pointage echouee (non bloquant) : {e_taches}")
 
         # ── Extraction des données Récapitulatif (optionnel) ──
         recap_data = None
