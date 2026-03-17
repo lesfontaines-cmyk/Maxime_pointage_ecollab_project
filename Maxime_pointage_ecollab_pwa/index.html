@@ -1759,6 +1759,7 @@ function loadState() {
   if(!d)try{d=JSON.parse(sessionStorage.getItem(storKey())||'null');}catch(e){}
   if(d){ S.plages=d.plages||[]; S.cloture=d.cloture||false; S.date=d.date||''; S.enPoste=d.enPoste||false; S.history=d.history||[]; S.priseTsMs=d.priseTsMs||null; S.variables=d.variables||{astreinte:0,indemniteEloignement:0}; }
   if(S.enPoste){ _priseTsMs=S.priseTsMs||Date.now(); }
+  _deduplicatePlages();
   // Vérifier le cache eCollab : si le jour est déjà validé, bloquer immédiatement
   _applyEcollabCacheBlock();
 }
@@ -2270,6 +2271,18 @@ function nowHHMM() { var d=new Date(); return pad(d.getHours())+':'+pad(d.getMin
 function arrondiSup(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.ceil((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
 function arrondiInf(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.floor((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
 
+// Supprimer les plages en doublon (même debut+fin)
+function _deduplicatePlages() {
+  if (!S.plages || S.plages.length <= 1) return;
+  var seen = {};
+  S.plages = S.plages.filter(function(p) {
+    var key = (p.debut||'') + '|' + (p.fin||'');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 // Vérifier si le jour a changé et réinitialiser si besoin
 function _checkDayChange() {
   var today = todayISO();
@@ -2299,6 +2312,8 @@ function pointePrise() {
   var h=nowHHMM();
   // Premier pointage auto : vider les plages par defaut
   if(!S.history.length) S.plages=[];
+  // Dédupliquer les plages (protection contre les doublons)
+  _deduplicatePlages();
   // Chercher une plage existante sans debut (créée manuellement)
   var found = -1;
   for (var i = S.plages.length - 1; i >= 0; i--) {
@@ -2769,8 +2784,9 @@ function _renderRecapMonth(year, month, today, ecollabDays) {
       var isToday = (dayStr === today);
       var valideEntreprise = info && info.valideEntreprise;
       var valideSalarie = info && info.valideSalarie;
-      var isProvisoire = info && info.provisoire;
       var travaille = info && info.travaille;
+      var isFuture = dayStr > today;
+      var isProvisoire = travaille && isFuture && !valideSalarie && !valideEntreprise;
 
       var rowCls = 'recap-month-day-row';
       if (dayMin === 0 && !isToday) rowCls += ' empty';
@@ -3312,6 +3328,7 @@ function init() {
   if(currentUser){
     // Session active
     if(!S.date) S.date=todayISO();
+    _checkDayChange(); // Forcer la réinit si le jour a changé
     loadStateWithServerSync();
     showPage('pointage');
     testServeur();
