@@ -2925,6 +2925,7 @@ function _envoyerClotureEnBackground(plages, pointageDate) {
 
 function _lancerClotureBackground(plages, pointageDate, dateLabel) {
   var job = {
+    id:        'current',
     server:    CFG.server,
     email:     CFG.email,
     password:  CFG.password,
@@ -2935,27 +2936,44 @@ function _lancerClotureBackground(plages, pointageDate, dateLabel) {
     variables: S.variables || {}
   };
 
-  // Stocker le job dans IndexedDB via le SW, puis enregistrer le Background Sync
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'STORE_CLOTURE', payload: job });
-    navigator.serviceWorker.ready.then(function(reg) {
-      if (reg.sync) {
-        return reg.sync.register('cloture-sync').then(function() {
-          console.log('[CLOTURE] Background Sync enregistré');
-        });
-      } else {
-        // Fallback si Background Sync non supporté
-        console.log('[CLOTURE] Background Sync non supporté, fallback fetch direct');
-        _clotureDirectFetch(job);
-      }
-    }).catch(function(e) {
-      console.log('[CLOTURE] Erreur sync register:', e.message);
+  // Écrire dans IndexedDB DEPUIS la page, attendre la fin, PUIS enregistrer le sync
+  _storeClotureJob(job).then(function() {
+    if (navigator.serviceWorker) {
+      return navigator.serviceWorker.ready.then(function(reg) {
+        if (reg.sync) {
+          return reg.sync.register('cloture-sync').then(function() {
+            console.log('[CLOTURE] Background Sync enregistré');
+          });
+        } else {
+          console.log('[CLOTURE] Background Sync non supporté, fallback fetch direct');
+          _clotureDirectFetch(job);
+        }
+      });
+    } else {
       _clotureDirectFetch(job);
-    });
-  } else {
-    // Pas de SW — fetch direct
+    }
+  }).catch(function(e) {
+    console.log('[CLOTURE] Erreur:', e.message);
     _clotureDirectFetch(job);
-  }
+  });
+}
+
+// Stocke le job dans IndexedDB côté page (pas via postMessage)
+function _storeClotureJob(job) {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open('cloture-db', 1);
+    req.onupgradeneeded = function(e) {
+      e.target.result.createObjectStore('pending', { keyPath: 'id' });
+    };
+    req.onsuccess = function(e) {
+      var db = e.target.result;
+      var tx = db.transaction('pending', 'readwrite');
+      tx.objectStore('pending').put(job);
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error); };
+    };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
 }
 
 // Fallback si Background Sync non disponible
@@ -3241,6 +3259,18 @@ function init() {
       _swRefreshing = true;
       sessionStorage.setItem(_swReloadKey, String(Date.now()));
       window.location.reload();
+    });
+
+    // Écouter les messages du SW (résultat Background Sync)
+    navigator.serviceWorker.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'CLOTURE_RESULT') {
+        if (event.data.success) {
+          S.cloture = true;
+          _setCacheValide();
+          save();
+          render();
+        }
+      }
     });
 
     navigator.serviceWorker.register('./sw.js').then(function(reg) {

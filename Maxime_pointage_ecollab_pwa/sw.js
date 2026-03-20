@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '3.8.0';
+var APP_VERSION = '3.8.1';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -175,6 +175,12 @@ function _executerCloture() {
     .then(function(data) {
       // Succès ou erreur métier — on arrête les retries
       return _clearPendingCloture().then(function() {
+        // Notifier la page (si ouverte) pour mettre à jour l'état
+        self.clients.matchAll({ type: 'window' }).then(function(clients) {
+          clients.forEach(function(client) {
+            client.postMessage({ type: 'CLOTURE_RESULT', success: data.success, error: data.error });
+          });
+        });
         if (data.success) {
           var plagesLabel = job.plages.length
             ? job.plages.map(function(p) { return p.debut + ' - ' + p.fin; }).join(' | ')
@@ -210,21 +216,5 @@ function _executerCloture() {
 self.addEventListener('message', function(event) {
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: APP_VERSION });
-  }
-  // La page peut aussi demander de stocker une clôture en attente
-  if (event.data && event.data.type === 'STORE_CLOTURE') {
-    event.waitUntil(
-      _openClotureDB().then(function(db) {
-        return new Promise(function(resolve, reject) {
-          var tx = db.transaction('pending', 'readwrite');
-          var store = tx.objectStore('pending');
-          var job = event.data.payload;
-          job.id = 'current';
-          store.put(job);
-          tx.oncomplete = function() { resolve(); };
-          tx.onerror = function() { reject(tx.error); };
-        });
-      })
-    );
   }
 });
