@@ -1847,6 +1847,49 @@ function toast(msg,type,dur) {
   if(_toastT)clearTimeout(_toastT);
   _toastT=setTimeout(function(){el.classList.remove('show');},dur);
 }
+
+// ======================================
+// NOTIFICATIONS SYSTEME (telephone)
+// ======================================
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+function sendNotification(title, body, isError) {
+  // Toujours afficher un toast dans l'app (au cas où l'app est ouverte)
+  toast(body, isError ? 'error' : 'success', 6000);
+  // Notification système (visible même si l'app est en arrière-plan)
+  console.log('[NOTIF] permission:', ('Notification' in window) ? Notification.permission : 'API absente');
+  console.log('[NOTIF] SW controller:', !!(navigator.serviceWorker && navigator.serviceWorker.controller));
+  if (!('Notification' in window)) { console.log('[NOTIF] API Notification non disponible'); return; }
+  if (Notification.permission !== 'granted') {
+    console.log('[NOTIF] Permission non accordée, on la demande...');
+    Notification.requestPermission().then(function(p) { console.log('[NOTIF] Résultat permission:', p); });
+    return;
+  }
+  try {
+    var options = {
+      body: body,
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: 'cloture-result',
+      renotify: true,
+      requireInteraction: isError
+    };
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(function(reg) {
+        reg.showNotification(title, options);
+        console.log('[NOTIF] Notification envoyée via SW');
+      });
+    } else {
+      new Notification(title, options);
+      console.log('[NOTIF] Notification envoyée via new Notification()');
+    }
+  } catch(e) {
+    console.log('[NOTIF] Erreur:', e.message);
+  }
+}
 function showPage(p) {
   var m=document.getElementById('mainContent');
   var s=document.getElementById('settingsOverlay');
@@ -2840,34 +2883,20 @@ function cloturerJournee() {
 
   var pointageDate = S.date || todayISO();
 
-  // Vérifier en live auprès d'eCollab avant de clôturer
-  _showClotureOverlay(plages, pointageDate);
+  // Envoyer en arrière-plan — le collaborateur peut fermer l'app
+  toast('Clôture en cours... Vous serez notifié du résultat.','info',5000);
+  _envoyerClotureEnBackground(plages, pointageDate);
 }
 
-function _showClotureOverlay(plages, pointageDate) {
-  // Afficher overlay
-  var overlay=document.getElementById('autoOverlay');
-  overlay.classList.add('show');
+function _envoyerClotureEnBackground(plages, pointageDate) {
   var dateParts=pointageDate.split('-');
   var dateLabel=dateParts[2]+'/'+dateParts[1]+'/'+dateParts[0];
-  var plagesLabel=plages.length ? plages.map(function(p){return p.debut+' \u2192 '+p.fin;}).join(' | ') : 'Journee vide (non travaillee)';
-  document.getElementById('autoSubtitle').textContent=dateLabel+' \u2014 '+plagesLabel;
-  document.getElementById('autoResult').textContent='';
-  document.getElementById('autoResult').className='auto-result';
-  document.getElementById('autoBtnClose').className='auto-btn-close';
-  var cancelBtn=document.getElementById('autoBtnCancel');
-  cancelBtn.className='auto-btn-cancel show'; cancelBtn.disabled=false;
-  [1,2,3,4].forEach(function(n){setAutoStep(n,'pending');});
-
-  setAutoStep(1,'active');
-  _clotureAbort = new AbortController();
 
   // Étape 1 : vérifier si le jour est déjà validé via /fetch-week
   fetch(CFG.server+'/fetch-week', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: pointageDate }),
-    signal: _clotureAbort.signal
+    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: pointageDate })
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
@@ -2877,39 +2906,23 @@ function _showClotureOverlay(plages, pointageDate) {
       try { localStorage.setItem(ck, JSON.stringify(data.days)); } catch(e) {}
       var dayInfo = data.days[pointageDate];
       if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
-        // Jour déjà validé — bloquer
-        setAutoStep(1,'error');
-        document.getElementById('autoBtnCancel').className='auto-btn-cancel';
-        document.getElementById('autoResult').textContent='\u274C Journée déjà validée dans Ecollaboratrice. Clôture impossible.';
-        document.getElementById('autoResult').className='auto-result err';
-        document.getElementById('autoBtnClose').className='auto-btn-close show';
+        // Jour déjà validé — notifier l'utilisateur
         _setCacheValide();
         render();
+        sendNotification('Clôture impossible', 'Journée du ' + dateLabel + ' déjà validée dans Ecollaboratrice.', true);
         return;
       }
     }
     // Jour non validé — lancer la clôture
-    _lancerCloture(plages, pointageDate, cancelBtn);
+    _lancerClotureBackground(plages, pointageDate, dateLabel);
   })
   .catch(function(e){
-    if (e && e.name==='AbortError') return;
-    // Serveur inaccessible — lancer la clôture quand même (le serveur /cloture vérifiera)
-    _lancerCloture(plages, pointageDate, cancelBtn);
+    // Serveur inaccessible pour la vérification — lancer la clôture quand même
+    _lancerClotureBackground(plages, pointageDate, dateLabel);
   });
 }
 
-function _lancerCloture(plages, pointageDate, cancelBtn) {
-  setAutoStep(1,'done');
-  setAutoStep(2,'active');
-  _clotureStepTimer = setInterval(function(){
-    var active=[2,3,4].find(function(n){return document.getElementById('step'+n).className.indexOf('active')!==-1;});
-    if(active&&active<4){
-      setAutoStep(active,'done');setAutoStep(active+1,'active');
-      if(active+1===4){ cancelBtn.disabled=true; }
-    }
-    else clearInterval(_clotureStepTimer);
-  }, 8000);
-
+function _lancerClotureBackground(plages, pointageDate, dateLabel) {
   fetch(CFG.server+'/cloture', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -2920,39 +2933,22 @@ function _lancerCloture(plages, pointageDate, cancelBtn) {
       plages:   plages,
       date:     pointageDate,
       variables: S.variables || {}
-    }),
-    signal: _clotureAbort.signal
+    })
   })
   .then(function(resp){return resp.json();})
   .then(function(data){
-    clearInterval(_clotureStepTimer);
-    document.getElementById('autoBtnCancel').className='auto-btn-cancel';
     if(data.success) {
-      [1,2,3,4].forEach(function(n){setAutoStep(n,'done');});
-      document.getElementById('autoResult').textContent='\u2705 '+data.message;
-      document.getElementById('autoResult').className='auto-result ok';
-      document.getElementById('autoBtnClose').className='auto-btn-close show';
       S.cloture=true;
       _setCacheValide();
       save(); render();
-      toast('Journée clôturée dans Ecollaboratrice','success');
+      var plagesLabel = plages.length ? plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
+      sendNotification('Clôture réussie', dateLabel + ' : ' + plagesLabel, false);
     } else {
-      var active=[1,2,3,4].find(function(n){return document.getElementById('step'+n).className.indexOf('active')!==-1;})||4;
-      setAutoStep(active,'error');
-      document.getElementById('autoResult').textContent='\u274C '+(data.error||'Erreur inconnue');
-      document.getElementById('autoResult').className='auto-result err';
-      document.getElementById('autoBtnClose').className='auto-btn-close show';
+      sendNotification('Échec de la clôture', dateLabel + ' : ' + (data.error||'Erreur inconnue'), true);
     }
   })
   .catch(function(e){
-    clearInterval(_clotureStepTimer);
-    document.getElementById('autoBtnCancel').className='auto-btn-cancel';
-    if(e&&e.name==='AbortError') return;
-    var active=[1,2,3,4].find(function(n){return document.getElementById('step'+n).className.indexOf('active')!==-1;})||1;
-    setAutoStep(active,'error');
-    document.getElementById('autoResult').textContent='\u274C Serveur inaccessible. Verifiez la connexion.';
-    document.getElementById('autoResult').className='auto-result err';
-    document.getElementById('autoBtnClose').className='auto-btn-close show';
+    sendNotification('Échec de la clôture', dateLabel + ' : Serveur inaccessible. Vérifiez la connexion.', true);
   });
 }
 
@@ -3190,6 +3186,8 @@ function init() {
     loadStateWithServerSync();
     showPage('pointage');
     testServeur();
+    // Demander la permission pour les notifications (clôture en arrière-plan)
+    requestNotificationPermission();
     // Rafraîchir le recap eCollab en tâche de fond à chaque chargement
     _backgroundRecapRefresh();
   } else {
