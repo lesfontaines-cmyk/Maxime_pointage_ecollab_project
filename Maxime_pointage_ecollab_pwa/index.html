@@ -1860,26 +1860,34 @@ function sendNotification(title, body, isError) {
   // Toujours afficher un toast dans l'app (au cas où l'app est ouverte)
   toast(body, isError ? 'error' : 'success', 6000);
   // Notification système (visible même si l'app est en arrière-plan)
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      var options = {
-        body: body,
-        icon: './icon-192.png',
-        badge: './icon-192.png',
-        tag: 'cloture-result',
-        renotify: true,
-        requireInteraction: isError
-      };
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then(function(reg) {
-          reg.showNotification(title, options);
-        });
-      } else {
-        new Notification(title, options);
-      }
-    } catch(e) {
-      // Fallback: le toast est déjà affiché
+  console.log('[NOTIF] permission:', ('Notification' in window) ? Notification.permission : 'API absente');
+  console.log('[NOTIF] SW controller:', !!(navigator.serviceWorker && navigator.serviceWorker.controller));
+  if (!('Notification' in window)) { console.log('[NOTIF] API Notification non disponible'); return; }
+  if (Notification.permission !== 'granted') {
+    console.log('[NOTIF] Permission non accordée, on la demande...');
+    Notification.requestPermission().then(function(p) { console.log('[NOTIF] Résultat permission:', p); });
+    return;
+  }
+  try {
+    var options = {
+      body: body,
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: 'cloture-result',
+      renotify: true,
+      requireInteraction: isError
+    };
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(function(reg) {
+        reg.showNotification(title, options);
+        console.log('[NOTIF] Notification envoyée via SW');
+      });
+    } else {
+      new Notification(title, options);
+      console.log('[NOTIF] Notification envoyée via new Notification()');
     }
+  } catch(e) {
+    console.log('[NOTIF] Erreur:', e.message);
   }
 }
 function showPage(p) {
