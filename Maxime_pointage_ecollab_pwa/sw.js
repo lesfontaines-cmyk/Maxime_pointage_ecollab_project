@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '3.7.2';
+var APP_VERSION = '3.8.0';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -113,10 +113,118 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
+// ----- BACKGROUND SYNC : CLOTURE -----
+// Le navigateur déclenche cet événement même si l'app est fermée.
+// Si le fetch échoue, on throw pour que le navigateur réessaie plus tard.
+self.addEventListener('sync', function(event) {
+  if (event.tag === 'cloture-sync') {
+    event.waitUntil(_executerCloture());
+  }
+});
+
+function _openClotureDB() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open('cloture-db', 1);
+    req.onupgradeneeded = function(e) {
+      e.target.result.createObjectStore('pending', { keyPath: 'id' });
+    };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
+}
+
+function _getPendingCloture() {
+  return _openClotureDB().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('pending', 'readonly');
+      var req = tx.objectStore('pending').get('current');
+      req.onsuccess = function() { resolve(req.result || null); };
+      req.onerror = function() { reject(req.error); };
+    });
+  });
+}
+
+function _clearPendingCloture() {
+  return _openClotureDB().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('pending', 'readwrite');
+      var req = tx.objectStore('pending').delete('current');
+      req.onsuccess = function() { resolve(); };
+      req.onerror = function() { reject(req.error); };
+    });
+  });
+}
+
+function _executerCloture() {
+  return _getPendingCloture().then(function(job) {
+    if (!job) return;
+
+    return fetch(job.server + '/cloture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:     job.email,
+        password:  job.password,
+        url:       job.url,
+        plages:    job.plages,
+        date:      job.date,
+        variables: job.variables || {}
+      })
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      // Succès ou erreur métier — on arrête les retries
+      return _clearPendingCloture().then(function() {
+        if (data.success) {
+          var plagesLabel = job.plages.length
+            ? job.plages.map(function(p) { return p.debut + ' - ' + p.fin; }).join(' | ')
+            : 'Journée vide';
+          return self.registration.showNotification('Clôture réussie', {
+            body: job.dateLabel + ' : ' + plagesLabel,
+            icon: './icon-192.png',
+            badge: './icon-192.png',
+            tag: 'cloture-result',
+            renotify: true
+          });
+        } else {
+          return self.registration.showNotification('Échec de la clôture', {
+            body: job.dateLabel + ' : ' + (data.error || 'Erreur inconnue'),
+            icon: './icon-192.png',
+            badge: './icon-192.png',
+            tag: 'cloture-result',
+            renotify: true,
+            requireInteraction: true
+          });
+        }
+      });
+    })
+    .catch(function(e) {
+      // Fetch échoué (réseau / serveur down) — throw pour que le navigateur réessaie
+      console.log('[SW] Cloture sync échoué, le navigateur réessaiera:', e.message);
+      throw e;
+    });
+  });
+}
+
 // ----- MESSAGE -----
-// Permet a la page de demander la version du SW
 self.addEventListener('message', function(event) {
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: APP_VERSION });
+  }
+  // La page peut aussi demander de stocker une clôture en attente
+  if (event.data && event.data.type === 'STORE_CLOTURE') {
+    event.waitUntil(
+      _openClotureDB().then(function(db) {
+        return new Promise(function(resolve, reject) {
+          var tx = db.transaction('pending', 'readwrite');
+          var store = tx.objectStore('pending');
+          var job = event.data.payload;
+          job.id = 'current';
+          store.put(job);
+          tx.oncomplete = function() { resolve(); };
+          tx.onerror = function() { reject(tx.error); };
+        });
+      })
+    );
   }
 });

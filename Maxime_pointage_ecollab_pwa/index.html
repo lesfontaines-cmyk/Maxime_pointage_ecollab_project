@@ -2924,46 +2924,64 @@ function _envoyerClotureEnBackground(plages, pointageDate) {
 }
 
 function _lancerClotureBackground(plages, pointageDate, dateLabel) {
-  var MAX_RETRIES = 10;
-  var RETRY_DELAY = 30000; // 30 secondes entre chaque essai
-  var FETCH_TIMEOUT = 30000; // 30 secondes max par requête
+  var job = {
+    server:    CFG.server,
+    email:     CFG.email,
+    password:  CFG.password,
+    url:       CFG.url,
+    plages:    plages,
+    date:      pointageDate,
+    dateLabel: dateLabel,
+    variables: S.variables || {}
+  };
 
-  function tentative(n) {
-    fetch(CFG.server+'/cloture', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        email:    CFG.email,
-        password: CFG.password,
-        url:      CFG.url,
-        plages:   plages,
-        date:     pointageDate,
-        variables: S.variables || {}
-      }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT)
-    })
-    .then(function(resp){return resp.json();})
-    .then(function(data){
-      if(data.success) {
-        S.cloture=true;
-        _setCacheValide();
-        save(); render();
-        var plagesLabel = plages.length ? plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
-        sendNotification('Clôture réussie', dateLabel + ' : ' + plagesLabel, false);
+  // Stocker le job dans IndexedDB via le SW, puis enregistrer le Background Sync
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'STORE_CLOTURE', payload: job });
+    navigator.serviceWorker.ready.then(function(reg) {
+      if (reg.sync) {
+        return reg.sync.register('cloture-sync').then(function() {
+          console.log('[CLOTURE] Background Sync enregistré');
+        });
       } else {
-        sendNotification('Échec de la clôture', dateLabel + ' : ' + (data.error||'Erreur inconnue'), true);
+        // Fallback si Background Sync non supporté
+        console.log('[CLOTURE] Background Sync non supporté, fallback fetch direct');
+        _clotureDirectFetch(job);
       }
-    })
-    .catch(function(e){
-      if (n < MAX_RETRIES) {
-        console.log('[CLOTURE] Tentative ' + n + '/' + MAX_RETRIES + ' échouée, nouvel essai dans 30s...');
-        setTimeout(function(){ tentative(n + 1); }, RETRY_DELAY);
-      } else {
-        sendNotification('Échec de la clôture', dateLabel + ' : Serveur inaccessible après ' + MAX_RETRIES + ' tentatives.', true);
-      }
+    }).catch(function(e) {
+      console.log('[CLOTURE] Erreur sync register:', e.message);
+      _clotureDirectFetch(job);
     });
+  } else {
+    // Pas de SW — fetch direct
+    _clotureDirectFetch(job);
   }
-  tentative(1);
+}
+
+// Fallback si Background Sync non disponible
+function _clotureDirectFetch(job) {
+  fetch(job.server+'/cloture', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      email: job.email, password: job.password, url: job.url,
+      plages: job.plages, date: job.date, variables: job.variables
+    }),
+    signal: AbortSignal.timeout(30000)
+  })
+  .then(function(resp){return resp.json();})
+  .then(function(data){
+    if(data.success) {
+      S.cloture=true; _setCacheValide(); save(); render();
+      var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
+      sendNotification('Clôture réussie', job.dateLabel + ' : ' + plagesLabel, false);
+    } else {
+      sendNotification('Échec de la clôture', job.dateLabel + ' : ' + (data.error||'Erreur inconnue'), true);
+    }
+  })
+  .catch(function(e){
+    sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible.', true);
+  });
 }
 
 // ======================================
