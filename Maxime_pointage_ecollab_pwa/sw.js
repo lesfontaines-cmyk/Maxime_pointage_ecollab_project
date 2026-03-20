@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '3.6.0';
+var APP_VERSION = '3.7.0';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -93,6 +93,22 @@ self.addEventListener('fetch', function(event) {
       if (request.mode === 'navigate') {
         return caches.match('./index.html');
       }
+    })
+  );
+});
+
+// ----- NOTIFICATION CLICK -----
+// Ouvre l'app quand l'utilisateur clique sur une notification de cloture
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        if (clientList[i].url.indexOf('index.html') !== -1 || clientList[i].url.endsWith('/')) {
+          return clientList[i].focus();
+        }
+      }
+      return clients.openWindow('./');
     })
   );
 });
