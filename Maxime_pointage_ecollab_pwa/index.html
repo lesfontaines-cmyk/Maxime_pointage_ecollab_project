@@ -2924,33 +2924,46 @@ function _envoyerClotureEnBackground(plages, pointageDate) {
 }
 
 function _lancerClotureBackground(plages, pointageDate, dateLabel) {
-  fetch(CFG.server+'/cloture', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      email:    CFG.email,
-      password: CFG.password,
-      url:      CFG.url,
-      plages:   plages,
-      date:     pointageDate,
-      variables: S.variables || {}
+  var MAX_RETRIES = 10;
+  var RETRY_DELAY = 30000; // 30 secondes entre chaque essai
+  var FETCH_TIMEOUT = 30000; // 30 secondes max par requête
+
+  function tentative(n) {
+    fetch(CFG.server+'/cloture', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email:    CFG.email,
+        password: CFG.password,
+        url:      CFG.url,
+        plages:   plages,
+        date:     pointageDate,
+        variables: S.variables || {}
+      }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT)
     })
-  })
-  .then(function(resp){return resp.json();})
-  .then(function(data){
-    if(data.success) {
-      S.cloture=true;
-      _setCacheValide();
-      save(); render();
-      var plagesLabel = plages.length ? plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
-      sendNotification('Clôture réussie', dateLabel + ' : ' + plagesLabel, false);
-    } else {
-      sendNotification('Échec de la clôture', dateLabel + ' : ' + (data.error||'Erreur inconnue'), true);
-    }
-  })
-  .catch(function(e){
-    sendNotification('Échec de la clôture', dateLabel + ' : Serveur inaccessible. Vérifiez la connexion.', true);
-  });
+    .then(function(resp){return resp.json();})
+    .then(function(data){
+      if(data.success) {
+        S.cloture=true;
+        _setCacheValide();
+        save(); render();
+        var plagesLabel = plages.length ? plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
+        sendNotification('Clôture réussie', dateLabel + ' : ' + plagesLabel, false);
+      } else {
+        sendNotification('Échec de la clôture', dateLabel + ' : ' + (data.error||'Erreur inconnue'), true);
+      }
+    })
+    .catch(function(e){
+      if (n < MAX_RETRIES) {
+        console.log('[CLOTURE] Tentative ' + n + '/' + MAX_RETRIES + ' échouée, nouvel essai dans 30s...');
+        setTimeout(function(){ tentative(n + 1); }, RETRY_DELAY);
+      } else {
+        sendNotification('Échec de la clôture', dateLabel + ' : Serveur inaccessible après ' + MAX_RETRIES + ' tentatives.', true);
+      }
+    });
+  }
+  tentative(1);
 }
 
 // ======================================
