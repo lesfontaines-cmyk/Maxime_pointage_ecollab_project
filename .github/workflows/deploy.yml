@@ -6,17 +6,8 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ${{ secrets.PROJECT_PATH }}
-            git pull origin main
-            cd Maxime_pointage_ecollab_serveur
-            pip install -r requirements.txt
-            sudo systemctl restart pointage-serveur || true
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && cd Maxime_pointage_ecollab_serveur && pip install -r requirements.txt && sudo systemctl restart pointage-serveur || true"
