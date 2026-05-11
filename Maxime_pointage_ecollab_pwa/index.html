@@ -3032,7 +3032,7 @@ function _lancerClotureBackground(plages, pointageDate, dateLabel) {
     variables: S.variables || {}
   };
 
-  // Lancer le fetch direct en parallèle (feedback immédiat si l'app est ouverte)
+  _clotureHandled = false;
   _clotureDirectFetch(job);
 
   // Enregistrer aussi le Background Sync comme filet de sécurité
@@ -3069,6 +3069,8 @@ function _storeClotureJob(job) {
   });
 }
 
+var _clotureHandled = false;
+
 function _clearClotureJob() {
   try {
     var req = indexedDB.open('cloture-db', 1);
@@ -3092,8 +3094,9 @@ function _clotureDirectFetch(job) {
   })
   .then(function(resp){return resp.json();})
   .then(function(data){
-    // Nettoyer le job IndexedDB pour que le Background Sync ne le refasse pas
     _clearClotureJob();
+    if (_clotureHandled) return;
+    _clotureHandled = true;
     if(data.success) {
       S.cloture=true; _setCacheValide(); save(); render();
       var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
@@ -3103,6 +3106,7 @@ function _clotureDirectFetch(job) {
     }
   })
   .catch(function(e){
+    if (_clotureHandled) return;
     sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible.', true);
   });
 }
@@ -3416,6 +3420,8 @@ function init() {
     // Écouter les messages du SW (résultat Background Sync)
     navigator.serviceWorker.addEventListener('message', function(event) {
       if (event.data && event.data.type === 'CLOTURE_RESULT') {
+        if (_clotureHandled) return;
+        _clotureHandled = true;
         if (event.data.success) {
           S.cloture = true;
           _setCacheValide();
