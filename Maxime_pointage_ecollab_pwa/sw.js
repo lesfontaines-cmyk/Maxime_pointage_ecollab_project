@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '3.7.2';
+var APP_VERSION = '3.9.0';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -159,6 +159,8 @@ function _executerCloture() {
   return _getPendingCloture().then(function(job) {
     if (!job) return;
 
+    var retryCount = job.retryCount || 0;
+
     return fetch(job.server + '/cloture', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,9 +175,7 @@ function _executerCloture() {
     })
     .then(function(resp) { return resp.json(); })
     .then(function(data) {
-      // Succès ou erreur métier — on arrête les retries
       return _clearPendingCloture().then(function() {
-        // Notifier la page (si ouverte) pour mettre à jour l'état
         self.clients.matchAll({ type: 'window' }).then(function(clients) {
           clients.forEach(function(client) {
             client.postMessage({ type: 'CLOTURE_RESULT', success: data.success, error: data.error });
@@ -205,9 +205,33 @@ function _executerCloture() {
       });
     })
     .catch(function(e) {
-      // Fetch échoué (réseau / serveur down) — throw pour que le navigateur réessaie
-      console.log('[SW] Cloture sync échoué, le navigateur réessaiera:', e.message);
-      throw e;
+      console.log('[SW] Cloture sync échoué (tentative ' + (retryCount + 1) + '):', e.message);
+      if (retryCount >= 2) {
+        return _clearPendingCloture().then(function() {
+          self.clients.matchAll({ type: 'window' }).then(function(clients) {
+            clients.forEach(function(client) {
+              client.postMessage({ type: 'CLOTURE_RESULT', success: false, error: 'Serveur inaccessible après plusieurs tentatives' });
+            });
+          });
+          return self.registration.showNotification('Échec de la clôture', {
+            body: job.dateLabel + ' : Serveur inaccessible après plusieurs tentatives.',
+            icon: './icon-192.png',
+            badge: './icon-192.png',
+            tag: 'cloture-result',
+            renotify: true,
+            requireInteraction: true
+          });
+        });
+      }
+      job.retryCount = retryCount + 1;
+      return _openClotureDB().then(function(db) {
+        return new Promise(function(resolve, reject) {
+          var tx = db.transaction('pending', 'readwrite');
+          tx.objectStore('pending').put(job);
+          tx.oncomplete = function() { reject(e); };
+          tx.onerror = function() { reject(e); };
+        });
+      }).catch(function() { throw e; });
     });
   });
 }
