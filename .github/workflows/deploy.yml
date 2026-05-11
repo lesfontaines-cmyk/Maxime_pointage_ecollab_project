@@ -1,0 +1,58 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: lesfontaines-cmyk
+
+jobs:
+  build-serveur:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push serveur image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Maxime_pointage_ecollab_serveur
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/pointage-serveur:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/pointage-serveur:${{ github.sha }}
+
+  build-pwa:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push PWA image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Maxime_pointage_ecollab_pwa
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/pointage-pwa:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/pointage-pwa:${{ github.sha }}
