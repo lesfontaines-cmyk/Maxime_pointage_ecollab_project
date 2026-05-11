@@ -1767,6 +1767,8 @@ function _applyEcollabCacheBlock() {
         S.cloture = true;
         S.enPoste = false;
         _priseTsMs = null;
+      } else {
+        S.cloture = false;
       }
     }
   } catch(e) {}
@@ -3294,6 +3296,9 @@ function _backgroundRecapRefresh(force) {
           S.plages = dayInfo.plages.map(function(p) { var o = {debut: p.debut, fin: p.fin}; if (p.tache) o.tache = p.tache; return o; });
         }
         S.cloture = true;
+        save();
+      } else if (dayInfo && !dayInfo.valideSalarie && !dayInfo.valideEntreprise) {
+        S.cloture = false;
         save();
       }
       // Mettre à jour toute l'UI (Horaires + Pointage)
