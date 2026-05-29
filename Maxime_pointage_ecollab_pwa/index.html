@@ -3052,7 +3052,10 @@ function _clearClotureJob() {
   } catch(e) {}
 }
 
-function _clotureDirectFetch(job) {
+function _clotureDirectFetch(job, attempt) {
+  attempt = attempt || 1;
+  var MAX_ATTEMPTS = 5;
+  var RETRY_DELAY  = 30000;
   fetch(job.server+'/cloture', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -3077,7 +3080,12 @@ function _clotureDirectFetch(job) {
   })
   .catch(function(e){
     if (_clotureHandled) return;
-    sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible.', true);
+    console.log('[CLOTURE] Tentative ' + attempt + '/' + MAX_ATTEMPTS + ' échouée:', e.message);
+    if (attempt < MAX_ATTEMPTS) {
+      setTimeout(function(){ _clotureDirectFetch(job, attempt + 1); }, RETRY_DELAY);
+    } else {
+      sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible après ' + MAX_ATTEMPTS + ' tentatives.', true);
+    }
   });
 }
 
