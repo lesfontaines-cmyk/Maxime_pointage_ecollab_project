@@ -3004,52 +3004,34 @@ function _lancerClotureBackground(plages, pointageDate, dateLabel) {
 
   _clotureHandled = false;
   _clotureDirectFetch(job);
-
-  // Enregistrer aussi le Background Sync comme filet de sécurité
-  _storeClotureJob(job).then(function() {
-    if (navigator.serviceWorker) {
-      return navigator.serviceWorker.ready.then(function(reg) {
-        if (reg.sync) {
-          return reg.sync.register('cloture-sync').then(function() {
-            console.log('[CLOTURE] Background Sync enregistré en backup');
-          });
-        }
-      });
-    }
-  }).catch(function(e) {
-    console.log('[CLOTURE] Erreur Background Sync:', e.message);
-  });
-}
-
-// Stocke le job dans IndexedDB côté page (pas via postMessage)
-function _storeClotureJob(job) {
-  return new Promise(function(resolve, reject) {
-    var req = indexedDB.open('cloture-db', 1);
-    req.onupgradeneeded = function(e) {
-      e.target.result.createObjectStore('pending', { keyPath: 'id' });
-    };
-    req.onsuccess = function(e) {
-      var db = e.target.result;
-      var tx = db.transaction('pending', 'readwrite');
-      tx.objectStore('pending').put(job);
-      tx.oncomplete = function() { resolve(); };
-      tx.onerror = function() { reject(tx.error); };
-    };
-    req.onerror = function(e) { reject(e.target.error); };
-  });
 }
 
 var _clotureHandled = false;
 
-function _clearClotureJob() {
-  try {
-    var req = indexedDB.open('cloture-db', 1);
-    req.onsuccess = function(e) {
-      var db = e.target.result;
-      var tx = db.transaction('pending', 'readwrite');
-      tx.objectStore('pending').delete('current');
-    };
-  } catch(e) {}
+function _clotureCheckAlreadyDone(job) {
+  return fetch(job.server + '/fetch-week', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email: job.email, password: job.password, url: job.url, date: job.date }),
+    signal: AbortSignal.timeout(15000)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.days) {
+      var dayInfo = data.days[job.date];
+      return !!(dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise));
+    }
+    return false;
+  })
+  .catch(function() { return false; });
+}
+
+function _clotureHandleSuccess(job) {
+  if (_clotureHandled) return;
+  _clotureHandled = true;
+  S.cloture=true; _setCacheValide(); save(); render();
+  var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
+  sendNotification('Clôture réussie', job.dateLabel + ' : ' + plagesLabel, false);
 }
 
 function _clotureDirectFetch(job, attempt) {
@@ -3067,7 +3049,6 @@ function _clotureDirectFetch(job, attempt) {
   })
   .then(function(resp){return resp.json();})
   .then(function(data){
-    _clearClotureJob();
     if (_clotureHandled) return;
     _clotureHandled = true;
     if(data.success) {
@@ -3082,9 +3063,25 @@ function _clotureDirectFetch(job, attempt) {
     if (_clotureHandled) return;
     console.log('[CLOTURE] Tentative ' + attempt + '/' + MAX_ATTEMPTS + ' échouée:', e.message);
     if (attempt < MAX_ATTEMPTS) {
-      setTimeout(function(){ _clotureDirectFetch(job, attempt + 1); }, RETRY_DELAY);
+      setTimeout(function(){
+        _clotureCheckAlreadyDone(job).then(function(done) {
+          if (_clotureHandled) return;
+          if (done) {
+            _clotureHandleSuccess(job);
+          } else {
+            _clotureDirectFetch(job, attempt + 1);
+          }
+        });
+      }, RETRY_DELAY);
     } else {
-      sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible après ' + MAX_ATTEMPTS + ' tentatives.', true);
+      _clotureCheckAlreadyDone(job).then(function(done) {
+        if (_clotureHandled) return;
+        if (done) {
+          _clotureHandleSuccess(job);
+        } else {
+          sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible après ' + MAX_ATTEMPTS + ' tentatives.', true);
+        }
+      });
     }
   });
 }
@@ -3399,22 +3396,6 @@ function init() {
       window.location.reload();
     });
 
-    // Écouter les messages du SW (résultat Background Sync)
-    navigator.serviceWorker.addEventListener('message', function(event) {
-      if (event.data && event.data.type === 'CLOTURE_RESULT') {
-        if (_clotureHandled) return;
-        _clotureHandled = true;
-        if (event.data.success) {
-          S.cloture = true;
-          _setCacheValide();
-          save();
-          render();
-          toast('Clôture réussie !', 'success', 5000);
-        } else {
-          toast('Échec clôture : ' + (event.data.error || 'Erreur inconnue'), 'error', 8000);
-        }
-      }
-    });
 
     navigator.serviceWorker.register('./sw.js').then(function(reg) {
       // Verifier les mises a jour toutes les 60 minutes
