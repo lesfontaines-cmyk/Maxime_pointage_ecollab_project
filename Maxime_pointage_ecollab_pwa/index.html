@@ -1687,6 +1687,10 @@
   </div>
 
   <button class="btn-enregistrer" onclick="saveSettings()">Enregistrer</button>
+
+  <button id="btnTestPush" onclick="_testPushNotification()" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--gold);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);cursor:pointer;">Tester les notifications (5 min)</button>
+  <div class="hint" style="margin-top:4px;text-align:center;">Envoie une notification push dans 5 minutes. Fermez l'app et verrouillez le telephone pour tester.</div>
+
   <button onclick="showPage('pointage')" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--light);cursor:pointer;">&#x2190; Retour</button>
   <div style="text-align:center;margin-top:24px;color:var(--light);font-size:12px;letter-spacing:1px;opacity:0.5;">
     <span id="appVersionLabel">v--</span> &mdash; <a href="#" id="forceUpdateLink" onclick="forceAppUpdate();return false;" style="color:var(--gold);text-decoration:underline;cursor:pointer;">Forcer la mise a jour</a>
@@ -1984,6 +1988,37 @@ function _urlB64ToUint8(base64String) {
   var outputArray = new Uint8Array(rawData.length);
   for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
   return outputArray;
+}
+
+function _testPushNotification() {
+  if (!CFG.server || !CFG.email) { toast('Configurez vos identifiants', 'error'); return; }
+  var btn = document.getElementById('btnTestPush');
+  btn.disabled = true;
+  btn.textContent = 'Envoi en cours...';
+  _subscribeToPush();
+  setTimeout(function() {
+    fetch(CFG.server + '/test-push', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email: CFG.email, delay: 300 }),
+      signal: AbortSignal.timeout(15000)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      btn.disabled = false;
+      btn.textContent = 'Tester les notifications (5 min)';
+      if (data.success) {
+        toast('Notification programmee dans 5 minutes. Fermez l\'app et verrouillez le telephone.', 'success', 8000);
+      } else {
+        toast(data.error || 'Erreur', 'error', 6000);
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Tester les notifications (5 min)';
+      toast('Serveur inaccessible', 'error');
+    });
+  }, 2000);
 }
 
 function showPage(p) {
