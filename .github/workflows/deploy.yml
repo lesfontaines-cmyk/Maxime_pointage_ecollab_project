@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && cd Maxime_pointage_ecollab_serveur && python3 -m pip install -r requirements.txt && sudo systemctl restart pointage-serveur || true"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "bash -l -c 'cd ${{ secrets.PROJECT_PATH }} && git pull origin main && cd Maxime_pointage_ecollab_serveur && pip install -r requirements.txt && sudo systemctl restart pointage-serveur || true'"
