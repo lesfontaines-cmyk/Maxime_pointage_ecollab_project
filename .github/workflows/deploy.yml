@@ -17,15 +17,17 @@ jobs:
             cd Maxime_pointage_ecollab_serveur
             pip install -r requirements.txt
 
-            # Corriger le service systemd pour utiliser gunicorn.conf.py (2 workers)
+            # Passer à 2 workers / 180s timeout dans le service systemd
             SVC_FILE=$(sudo systemctl show pointage-serveur -p FragmentPath --value 2>/dev/null || echo "")
             if [ -n "$SVC_FILE" ] && [ -f "$SVC_FILE" ]; then
-              if ! grep -q 'gunicorn.conf.py' "$SVC_FILE"; then
-                echo "[deploy] Mise à jour du service systemd pour utiliser gunicorn.conf.py"
-                sudo sed -i 's|--workers [0-9]*||g; s|--timeout [0-9]*||g' "$SVC_FILE"
-                sudo sed -i 's|gunicorn server:app[^"]*|gunicorn server:app -c gunicorn.conf.py|' "$SVC_FILE"
-                sudo systemctl daemon-reload
+              # Remplacer les valeurs en place (préserve --bind et tous les autres flags)
+              if grep -q '\-\-workers' "$SVC_FILE"; then
+                sudo sed -i 's/--workers [0-9]*/--workers 2/' "$SVC_FILE"
               fi
+              if grep -q '\-\-timeout' "$SVC_FILE"; then
+                sudo sed -i 's/--timeout [0-9]*/--timeout 180/' "$SVC_FILE"
+              fi
+              sudo systemctl daemon-reload
             fi
 
             sudo systemctl restart pointage-serveur || true
