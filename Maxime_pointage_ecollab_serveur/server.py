@@ -1014,6 +1014,21 @@ def vapid_public_key():
     return jsonify({"publicKey": VAPID_KEYS['publicKey']})
 
 
+@app.route("/push-status", methods=["POST"])
+def push_status():
+    data = request.get_json(force=True)
+    email = (data.get("email") or "").strip()
+    subs = _load_push_subs()
+    sub = subs.get(email)
+    return jsonify({
+        "pushAvailable": PUSH_AVAILABLE,
+        "hasVapidKeys": bool(VAPID_KEYS.get('publicKey')),
+        "hasSubscription": bool(sub),
+        "subscriptionEndpoint": sub.get("endpoint", "")[:80] if sub else None,
+        "totalSubscriptions": len(subs)
+    })
+
+
 @app.route("/subscribe", methods=["POST"])
 def subscribe():
     data = request.get_json(force=True)
@@ -1035,18 +1050,38 @@ def test_push():
     delay = int(data.get("delay", 300))
     if not email:
         return jsonify({"success": False, "error": "Email requis"}), 400
+    if not PUSH_AVAILABLE:
+        return jsonify({"success": False, "error": "pywebpush non installé sur le serveur"}), 500
     subs = _load_push_subs()
     if email not in subs:
-        return jsonify({"success": False, "error": "Aucun abonnement push pour cet email. Ouvrez l'app et autorisez les notifications."}), 400
+        return jsonify({"success": False, "error": "Aucun abonnement push pour cet email"}), 400
 
+    # Test immédiat : vérifier que le push fonctionne
+    try:
+        webpush(
+            subscription_info=subs[email],
+            data=json.dumps({"title": "Test push immediat", "body": "Le push fonctionne ! Notification dans 5 min a suivre..."}),
+            vapid_private_key=VAPID_KEYS['privateKey'],
+            vapid_claims={"sub": "mailto:" + email}
+        )
+    except WebPushException as e:
+        resp_body = ""
+        if hasattr(e, 'response') and e.response:
+            try: resp_body = e.response.text[:200]
+            except: pass
+        return jsonify({"success": False, "error": f"Push échoué : {e} | {resp_body}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Erreur push : {e}"}), 500
+
+    # Push différé dans un thread
     def _delayed_push():
         time.sleep(delay)
-        _send_push(email, "Test notification", "Si vous voyez ceci, les notifications push fonctionnent !")
-        print(f"[PUSH] Test push envoyé à {email} après {delay}s")
+        _send_push(email, "Test notification (5 min)", "Si vous voyez ceci, les notifications push fonctionnent meme app fermee !")
+        print(f"[PUSH] Test push différé envoyé à {email} après {delay}s")
 
     t = threading.Thread(target=_delayed_push, daemon=True)
     t.start()
-    return jsonify({"success": True, "message": f"Notification programmée dans {delay}s"})
+    return jsonify({"success": True, "message": f"Push immédiat envoyé + notification dans {delay}s"})
 
 
 @app.route("/test-login", methods=["POST"])
