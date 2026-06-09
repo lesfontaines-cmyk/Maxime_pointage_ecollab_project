@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && cd Maxime_pointage_ecollab_serveur && (curl -sS https://bootstrap.pypa.io/get-pip.py | python3 - --user 2>&1 && python3 -m pip install --user -r requirements.txt 2>&1 || echo WARN_PIP_FAILED); pkill -HUP -f '[g]unicorn' 2>/dev/null; true"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && cd Maxime_pointage_ecollab_serveur && (curl -sS https://bootstrap.pypa.io/get-pip.py | python3 - --user --break-system-packages 2>&1 && python3 -m pip install --user --break-system-packages -r requirements.txt 2>&1 || echo WARN_PIP_FAILED); pkill -HUP -f '[g]unicorn' 2>/dev/null; true"
