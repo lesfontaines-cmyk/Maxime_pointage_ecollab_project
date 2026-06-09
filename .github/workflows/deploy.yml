@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo '=== ENV DIAG ==='; docker ps 2>&1 | head -20 || echo 'no docker'; echo '---'; docker compose ls 2>&1 || echo 'no compose'; echo '---'; command -v coolify 2>&1 || echo 'no coolify'; command -v dokku 2>&1 || echo 'no dokku'; echo '---'; ls /proc/1/cmdline 2>/dev/null && cat /proc/1/cmdline 2>/dev/null | tr '\0' ' ' || echo 'no proc1'; echo '---'; cat /proc/3868/cgroup 2>/dev/null | head -3 || echo 'no cgroup'; echo '---'; ls -la /var/run/docker.sock 2>/dev/null || echo 'no docker sock'; echo '=== END ===';"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && CONTAINER=\$(docker ps -qf ancestor=pointage) && docker cp Maxime_pointage_ecollab_serveur/requirements.txt \$CONTAINER:/tmp/requirements.txt && (docker exec \$CONTAINER pip install --break-system-packages -r /tmp/requirements.txt 2>&1 || echo WARN_PIP); docker restart \$CONTAINER"
