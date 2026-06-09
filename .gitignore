@@ -1,0 +1,5 @@
+# Fichiers générés sur le serveur
+Maxime_pointage_ecollab_serveur/vapid_keys.json
+Maxime_pointage_ecollab_serveur/push_subscriptions.json
+__pycache__/
+*.pyc

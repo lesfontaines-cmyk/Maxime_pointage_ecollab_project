@@ -1932,6 +1932,60 @@ function sendNotification(title, body, isError) {
     console.log('[NOTIF] Erreur:', e.message);
   }
 }
+
+// ======================================
+// WEB PUSH — SUBSCRIPTION
+// ======================================
+function _subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (!CFG.server || !CFG.email) return;
+
+  Notification.requestPermission().then(function(permission) {
+    if (permission !== 'granted') return;
+
+    fetch(CFG.server + '/vapid-public-key', { signal: AbortSignal.timeout(10000) })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.publicKey) return;
+        navigator.serviceWorker.ready.then(function(reg) {
+          reg.pushManager.getSubscription().then(function(existing) {
+            if (existing) {
+              _sendSubToServer(existing);
+              return;
+            }
+            reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: _urlB64ToUint8(data.publicKey)
+            }).then(function(sub) {
+              _sendSubToServer(sub);
+            }).catch(function(e) { console.log('[PUSH] Subscribe échoué:', e.message); });
+          });
+        });
+      })
+      .catch(function(e) { console.log('[PUSH] Erreur récup clé VAPID:', e.message); });
+  });
+}
+
+function _sendSubToServer(subscription) {
+  fetch(CFG.server + '/subscribe', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email: CFG.email, subscription: subscription.toJSON() }),
+    signal: AbortSignal.timeout(10000)
+  }).then(function() {
+    console.log('[PUSH] Abonnement envoyé au serveur');
+  }).catch(function(e) { console.log('[PUSH] Erreur envoi abonnement:', e.message); });
+}
+
+function _urlB64ToUint8(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
 function showPage(p) {
   var m=document.getElementById('mainContent');
   var s=document.getElementById('settingsOverlay');
@@ -3002,43 +3056,14 @@ function _lancerClotureBackground(plages, pointageDate, dateLabel) {
     variables: S.variables || {}
   };
 
-  _clotureHandled = false;
   _pendingClotureJob = job;
   _clotureDirectFetch(job);
 }
 
-var _clotureHandled = false;
 var _pendingClotureJob = null;
 
-function _clotureCheckAlreadyDone(job) {
-  return fetch(job.server + '/fetch-week', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ email: job.email, password: job.password, url: job.url, date: job.date }),
-    signal: AbortSignal.timeout(60000)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.success && data.days) {
-      var dayInfo = data.days[job.date];
-      return !!(dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise));
-    }
-    return false;
-  })
-  .catch(function() { return false; });
-}
-
-function _clotureHandleSuccess(job) {
-  if (_clotureHandled) return;
-  _clotureHandled = true;
-  _pendingClotureJob = null;
-  S.cloture=true; _setCacheValide(); save(); render();
-  var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
-  sendNotification('Clôture réussie', job.dateLabel + ' : ' + plagesLabel, false);
-}
-
 function _clotureDirectFetch(job) {
-  // POST /cloture une seule fois — pas de retry du POST (ça bloque le worker)
+  // POST /cloture une seule fois — le serveur envoie une notification push avec le résultat
   fetch(job.server+'/cloture', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -3050,53 +3075,41 @@ function _clotureDirectFetch(job) {
   })
   .then(function(resp){return resp.json();})
   .then(function(data){
-    if (_clotureHandled) return;
-    _clotureHandled = true;
     _pendingClotureJob = null;
     if(data.success) {
       S.cloture=true; _setCacheValide(); save(); render();
-      var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
-      sendNotification('Clôture réussie', job.dateLabel + ' : ' + plagesLabel, false);
+      toast('Clôture réussie !', 'success', 5000);
     } else {
-      sendNotification('Échec de la clôture', job.dateLabel + ' : ' + (data.error||'Erreur inconnue'), true);
+      toast('Échec clôture : ' + (data.error||'Erreur inconnue'), 'error', 8000);
     }
   })
   .catch(function(e){
-    console.log('[CLOTURE] POST échoué:', e.message);
-  });
-
-  // Polling : vérifier via /fetch-week si la clôture a réussi côté eCollab
-  // Démarre après 2 min (laisser le temps au serveur de traiter)
-  setTimeout(function() { _pollClotureResult(job, 1); }, 120000);
-}
-
-function _pollClotureResult(job, attempt) {
-  if (_clotureHandled) { _pendingClotureJob = null; return; }
-  var MAX_POLLS = 16;
-  console.log('[CLOTURE] Vérification ' + attempt + '/' + MAX_POLLS);
-
-  _clotureCheckAlreadyDone(job).then(function(done) {
-    if (_clotureHandled) { _pendingClotureJob = null; return; }
-    if (done) {
-      _clotureHandleSuccess(job);
-    } else if (attempt < MAX_POLLS) {
-      setTimeout(function() { _pollClotureResult(job, attempt + 1); }, 30000);
-    } else {
-      _pendingClotureJob = null;
-      sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible.', true);
-    }
+    console.log('[CLOTURE] Réponse HTTP non reçue — notification push attendue:', e.message);
   });
 }
 
-// Quand l'app revient au premier plan, vérifier immédiatement
+// Quand l'app revient au premier plan, vérifier si une clôture en attente a réussi
 document.addEventListener('visibilitychange', function() {
-  if (!document.hidden && _pendingClotureJob && !_clotureHandled) {
-    console.log('[CLOTURE] App revenue au premier plan, vérification...');
-    _clotureCheckAlreadyDone(_pendingClotureJob).then(function(done) {
-      if (done && !_clotureHandled) {
-        _clotureHandleSuccess(_pendingClotureJob);
+  if (!document.hidden && _pendingClotureJob) {
+    var job = _pendingClotureJob;
+    fetch(job.server + '/fetch-week', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email: job.email, password: job.password, url: job.url, date: job.date }),
+      signal: AbortSignal.timeout(60000)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success && data.days) {
+        var dayInfo = data.days[job.date];
+        if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
+          _pendingClotureJob = null;
+          S.cloture=true; _setCacheValide(); save(); render();
+          toast('Clôture réussie !', 'success', 5000);
+        }
       }
-    });
+    })
+    .catch(function() {});
   }
 });
 
@@ -3147,6 +3160,7 @@ function login() {
     
       // Charger les données eCollab pour bloquer si jour déjà validé
       _backgroundRecapRefresh();
+      _subscribeToPush();
       toast('Connecte en tant que '+email,'success');
     } else {
       errEl.textContent=data.error||'Identifiants incorrects';
@@ -3385,8 +3399,9 @@ function init() {
     history.replaceState({ page: 'pointage' }, '', '#pointage');
     showPage('pointage');
   
-    // Demander la permission pour les notifications (clôture en arrière-plan)
+    // Demander la permission pour les notifications et s'abonner aux push
     requestNotificationPermission();
+    _subscribeToPush();
     // Rafraîchir le recap eCollab en tâche de fond à chaque chargement
     _backgroundRecapRefresh();
   } else {
