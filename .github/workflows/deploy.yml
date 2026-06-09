@@ -17,20 +17,39 @@ jobs:
             cd Maxime_pointage_ecollab_serveur
             pip install -r requirements.txt
 
-            # Réparer et configurer le service systemd (2 workers, 180s timeout)
+            # Réparer le service systemd si nécessaire
             SVC_FILE=$(sudo systemctl show pointage-serveur -p FragmentPath --value 2>/dev/null || echo "")
             if [ -n "$SVC_FILE" ] && [ -f "$SVC_FILE" ]; then
-              # Annuler les dégâts du deploy précédent : retirer -c gunicorn.conf.py
+              echo "[deploy] Service file: $SVC_FILE"
+              echo "[deploy] ExecStart avant: $(grep ExecStart "$SVC_FILE")"
+
+              # Nettoyer les traces du deploy cassé
               sudo sed -i 's| -c gunicorn.conf.py||g' "$SVC_FILE"
-              # Mettre à jour --workers et --timeout si présents
+
+              # Ajouter --bind si absent (supprimé par erreur)
+              if ! grep -q '\-\-bind' "$SVC_FILE"; then
+                sudo sed -i '/ExecStart/s|server:app|server:app --bind 0.0.0.0:5000|' "$SVC_FILE"
+              fi
+
+              # Ajouter --workers si absent, sinon mettre à jour
               if grep -q '\-\-workers' "$SVC_FILE"; then
                 sudo sed -i 's/--workers [0-9]*/--workers 2/' "$SVC_FILE"
+              else
+                sudo sed -i '/ExecStart/s|server:app|server:app --workers 2|' "$SVC_FILE"
               fi
+
+              # Ajouter --timeout si absent, sinon mettre à jour
               if grep -q '\-\-timeout' "$SVC_FILE"; then
                 sudo sed -i 's/--timeout [0-9]*/--timeout 180/' "$SVC_FILE"
+              else
+                sudo sed -i '/ExecStart/s|server:app|server:app --timeout 180|' "$SVC_FILE"
               fi
+
+              echo "[deploy] ExecStart après: $(grep ExecStart "$SVC_FILE")"
               sudo systemctl daemon-reload
             fi
 
             sudo systemctl restart pointage-serveur || true
+            sleep 2
+            echo "[deploy] Service status: $(sudo systemctl is-active pointage-serveur)"
           DEPLOY_SCRIPT
