@@ -11,11 +11,89 @@ import time
 import datetime
 import threading
 import os
+import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
+try:
+    from pywebpush import webpush, WebPushException
+    PUSH_AVAILABLE = True
+except ImportError:
+    PUSH_AVAILABLE = False
+    print("[PUSH] pywebpush non installé — notifications push désactivées")
+
 app = Flask(__name__)
 CORS(app)  # Autorise les requêtes depuis la PWA mobile
+
+# ─── WEB PUSH (VAPID) ───────────────────────────────────────────────────────
+_SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+VAPID_KEYS_FILE = os.path.join(_SERVER_DIR, 'vapid_keys.json')
+PUSH_SUBS_FILE  = os.path.join(_SERVER_DIR, 'push_subscriptions.json')
+
+def _ensure_vapid_keys():
+    if os.path.exists(VAPID_KEYS_FILE):
+        with open(VAPID_KEYS_FILE, 'r') as f:
+            return json.load(f)
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    priv_bytes = private_key.private_numbers().private_value.to_bytes(32, 'big')
+    pub_bytes  = private_key.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+    keys = {
+        'privateKey': base64.urlsafe_b64encode(priv_bytes).rstrip(b'=').decode(),
+        'publicKey':  base64.urlsafe_b64encode(pub_bytes).rstrip(b'=').decode()
+    }
+    with open(VAPID_KEYS_FILE, 'w') as f:
+        json.dump(keys, f)
+    print(f"[PUSH] Clés VAPID générées → {VAPID_KEYS_FILE}")
+    return keys
+
+if PUSH_AVAILABLE:
+    try:
+        VAPID_KEYS = _ensure_vapid_keys()
+        print(f"[PUSH] Clés VAPID chargées (publicKey: {VAPID_KEYS['publicKey'][:20]}...)")
+    except Exception as e:
+        print(f"[PUSH] Erreur chargement clés VAPID: {e}")
+        VAPID_KEYS = {'publicKey': '', 'privateKey': ''}
+        PUSH_AVAILABLE = False
+else:
+    VAPID_KEYS = {'publicKey': '', 'privateKey': ''}
+
+def _load_push_subs():
+    try:
+        with open(PUSH_SUBS_FILE, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_push_subs(subs):
+    with open(PUSH_SUBS_FILE, 'w') as f:
+        json.dump(subs, f)
+
+def _send_push(email, title, body, is_error=False):
+    if not PUSH_AVAILABLE:
+        return
+    subs = _load_push_subs()
+    sub_info = subs.get(email)
+    if not sub_info:
+        print(f"  [push] Pas d'abonnement push pour {email}")
+        return
+    try:
+        webpush(
+            subscription_info=sub_info,
+            data=json.dumps({"title": title, "body": body, "isError": is_error}),
+            vapid_private_key=VAPID_KEYS['privateKey'],
+            vapid_claims={"sub": "mailto:" + email}
+        )
+        print(f"  [push] Notification envoyée à {email}")
+    except WebPushException as e:
+        print(f"  [push] Erreur WebPush: {e}")
+        if hasattr(e, 'response') and e.response and e.response.status_code in (404, 410):
+            subs.pop(email, None)
+            _save_push_subs(subs)
+            print(f"  [push] Abonnement expiré, supprimé pour {email}")
+    except Exception as e:
+        print(f"  [push] Erreur: {e}")
 
 # ─── UTILS ───────────────────────────────────────────────────────────────────
 def to_minutes(hhmm):
@@ -931,6 +1009,25 @@ def ping():
     return jsonify({"status": "ok", "message": "Serveur opérationnel"})
 
 
+@app.route("/vapid-public-key", methods=["GET"])
+def vapid_public_key():
+    return jsonify({"publicKey": VAPID_KEYS['publicKey']})
+
+
+@app.route("/subscribe", methods=["POST"])
+def subscribe():
+    data = request.get_json(force=True)
+    email = (data.get("email") or "").strip()
+    subscription = data.get("subscription")
+    if not email or not subscription:
+        return jsonify({"success": False, "error": "Email et subscription requis"}), 400
+    subs = _load_push_subs()
+    subs[email] = subscription
+    _save_push_subs(subs)
+    print(f"[PUSH] Abonnement enregistré pour {email}")
+    return jsonify({"success": True})
+
+
 @app.route("/test-login", methods=["POST"])
 def test_login():
     """
@@ -1087,9 +1184,12 @@ def cloture():
     # Lancer la clôture
     success, message = cloture_selenium(email, password, url, plages, date_str, variables)
 
+    # Envoyer la notification push (avant la réponse HTTP, car le client peut ne pas la recevoir)
     if success:
+        _send_push(email, "Clôture réussie", message)
         return jsonify({"success": True, "message": message})
     else:
+        _send_push(email, "Échec de la clôture", message, is_error=True)
         return jsonify({"success": False, "error": message}), 500
 
 

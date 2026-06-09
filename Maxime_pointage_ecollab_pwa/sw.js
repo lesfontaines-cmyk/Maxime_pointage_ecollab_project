@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '4.0.0';
+var APP_VERSION = '4.1.0';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -93,6 +93,25 @@ self.addEventListener('fetch', function(event) {
       if (request.mode === 'navigate') {
         return caches.match('./index.html');
       }
+    })
+  );
+});
+
+// ----- WEB PUSH -----
+// Reçoit les notifications push du serveur (même si l'app est fermée)
+self.addEventListener('push', function(event) {
+  var data = {};
+  try { data = event.data.json(); } catch(e) {
+    data = { title: 'Pointage CM', body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Pointage CM', {
+      body: data.body || '',
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: 'cloture-result',
+      renotify: true,
+      requireInteraction: !!data.isError
     })
   );
 });
