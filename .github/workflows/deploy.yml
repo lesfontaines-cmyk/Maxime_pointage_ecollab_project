@@ -10,4 +10,23 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && cd Maxime_pointage_ecollab_serveur && pip install -r requirements.txt && sudo systemctl restart pointage-serveur || true"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash -s << 'DEPLOY_SCRIPT'
+            set -e
+            cd ${{ secrets.PROJECT_PATH }}
+            git pull origin main
+            cd Maxime_pointage_ecollab_serveur
+            pip install -r requirements.txt
+
+            # Corriger le service systemd pour utiliser gunicorn.conf.py (2 workers)
+            SVC_FILE=$(sudo systemctl show pointage-serveur -p FragmentPath --value 2>/dev/null || echo "")
+            if [ -n "$SVC_FILE" ] && [ -f "$SVC_FILE" ]; then
+              if ! grep -q 'gunicorn.conf.py' "$SVC_FILE"; then
+                echo "[deploy] Mise à jour du service systemd pour utiliser gunicorn.conf.py"
+                sudo sed -i 's|--workers [0-9]*||g; s|--timeout [0-9]*||g' "$SVC_FILE"
+                sudo sed -i 's|gunicorn server:app[^"]*|gunicorn server:app -c gunicorn.conf.py|' "$SVC_FILE"
+                sudo systemctl daemon-reload
+              fi
+            fi
+
+            sudo systemctl restart pointage-serveur || true
+          DEPLOY_SCRIPT
