@@ -1028,6 +1028,27 @@ def subscribe():
     return jsonify({"success": True})
 
 
+@app.route("/test-push", methods=["POST"])
+def test_push():
+    data = request.get_json(force=True)
+    email = (data.get("email") or "").strip()
+    delay = int(data.get("delay", 300))
+    if not email:
+        return jsonify({"success": False, "error": "Email requis"}), 400
+    subs = _load_push_subs()
+    if email not in subs:
+        return jsonify({"success": False, "error": "Aucun abonnement push pour cet email. Ouvrez l'app et autorisez les notifications."}), 400
+
+    def _delayed_push():
+        time.sleep(delay)
+        _send_push(email, "Test notification", "Si vous voyez ceci, les notifications push fonctionnent !")
+        print(f"[PUSH] Test push envoyé à {email} après {delay}s")
+
+    t = threading.Thread(target=_delayed_push, daemon=True)
+    t.start()
+    return jsonify({"success": True, "message": f"Notification programmée dans {delay}s"})
+
+
 @app.route("/test-login", methods=["POST"])
 def test_login():
     """
