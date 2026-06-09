@@ -3003,17 +3003,19 @@ function _lancerClotureBackground(plages, pointageDate, dateLabel) {
   };
 
   _clotureHandled = false;
+  _pendingClotureJob = job;
   _clotureDirectFetch(job);
 }
 
 var _clotureHandled = false;
+var _pendingClotureJob = null;
 
 function _clotureCheckAlreadyDone(job) {
   return fetch(job.server + '/fetch-week', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ email: job.email, password: job.password, url: job.url, date: job.date }),
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(60000)
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -3029,15 +3031,14 @@ function _clotureCheckAlreadyDone(job) {
 function _clotureHandleSuccess(job) {
   if (_clotureHandled) return;
   _clotureHandled = true;
+  _pendingClotureJob = null;
   S.cloture=true; _setCacheValide(); save(); render();
   var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
   sendNotification('Clôture réussie', job.dateLabel + ' : ' + plagesLabel, false);
 }
 
-function _clotureDirectFetch(job, attempt) {
-  attempt = attempt || 1;
-  var MAX_ATTEMPTS = 5;
-  var RETRY_DELAY  = 30000;
+function _clotureDirectFetch(job) {
+  // POST /cloture une seule fois — pas de retry du POST (ça bloque le worker)
   fetch(job.server+'/cloture', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -3045,12 +3046,13 @@ function _clotureDirectFetch(job, attempt) {
       email: job.email, password: job.password, url: job.url,
       plages: job.plages, date: job.date, variables: job.variables
     }),
-    signal: AbortSignal.timeout(150000)
+    signal: AbortSignal.timeout(300000)
   })
   .then(function(resp){return resp.json();})
   .then(function(data){
     if (_clotureHandled) return;
     _clotureHandled = true;
+    _pendingClotureJob = null;
     if(data.success) {
       S.cloture=true; _setCacheValide(); save(); render();
       var plagesLabel = job.plages.length ? job.plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ') : 'Journée vide';
@@ -3060,31 +3062,43 @@ function _clotureDirectFetch(job, attempt) {
     }
   })
   .catch(function(e){
-    if (_clotureHandled) return;
-    console.log('[CLOTURE] Tentative ' + attempt + '/' + MAX_ATTEMPTS + ' échouée:', e.message);
-    if (attempt < MAX_ATTEMPTS) {
-      setTimeout(function(){
-        _clotureCheckAlreadyDone(job).then(function(done) {
-          if (_clotureHandled) return;
-          if (done) {
-            _clotureHandleSuccess(job);
-          } else {
-            _clotureDirectFetch(job, attempt + 1);
-          }
-        });
-      }, RETRY_DELAY);
+    console.log('[CLOTURE] POST échoué:', e.message);
+  });
+
+  // Polling : vérifier via /fetch-week si la clôture a réussi côté eCollab
+  // Démarre après 2 min (laisser le temps au serveur de traiter)
+  setTimeout(function() { _pollClotureResult(job, 1); }, 120000);
+}
+
+function _pollClotureResult(job, attempt) {
+  if (_clotureHandled) { _pendingClotureJob = null; return; }
+  var MAX_POLLS = 16;
+  console.log('[CLOTURE] Vérification ' + attempt + '/' + MAX_POLLS);
+
+  _clotureCheckAlreadyDone(job).then(function(done) {
+    if (_clotureHandled) { _pendingClotureJob = null; return; }
+    if (done) {
+      _clotureHandleSuccess(job);
+    } else if (attempt < MAX_POLLS) {
+      setTimeout(function() { _pollClotureResult(job, attempt + 1); }, 30000);
     } else {
-      _clotureCheckAlreadyDone(job).then(function(done) {
-        if (_clotureHandled) return;
-        if (done) {
-          _clotureHandleSuccess(job);
-        } else {
-          sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible après ' + MAX_ATTEMPTS + ' tentatives.', true);
-        }
-      });
+      _pendingClotureJob = null;
+      sendNotification('Échec de la clôture', job.dateLabel + ' : Serveur inaccessible.', true);
     }
   });
 }
+
+// Quand l'app revient au premier plan, vérifier immédiatement
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && _pendingClotureJob && !_clotureHandled) {
+    console.log('[CLOTURE] App revenue au premier plan, vérification...');
+    _clotureCheckAlreadyDone(_pendingClotureJob).then(function(done) {
+      if (done && !_clotureHandled) {
+        _clotureHandleSuccess(_pendingClotureJob);
+      }
+    });
+  }
+});
 
 // ======================================
 // LOGIN / LOGOUT
