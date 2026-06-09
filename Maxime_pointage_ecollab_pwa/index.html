@@ -1947,7 +1947,7 @@ function _subscribeToPush() {
   Notification.requestPermission().then(function(permission) {
     if (permission !== 'granted') return;
 
-    fetch(CFG.server + '/vapid-public-key', { signal: AbortSignal.timeout(10000) })
+    fetch(CFG.server + '/vapid-public-key', { signal: AbortSignal.timeout(120000) })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.publicKey) return;
@@ -1975,7 +1975,7 @@ function _sendSubToServer(subscription) {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ email: CFG.email, subscription: subscription.toJSON() }),
-    signal: AbortSignal.timeout(10000)
+    signal: AbortSignal.timeout(120000)
   }).then(function() {
     console.log('[PUSH] Abonnement envoyé au serveur');
   }).catch(function(e) { console.log('[PUSH] Erreur envoi abonnement:', e.message); });
@@ -2023,7 +2023,7 @@ function _testPushNotification() {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ email: CFG.email }),
-    signal: AbortSignal.timeout(10000)
+    signal: AbortSignal.timeout(120000)
   })
   .then(function(r) { return r.json(); })
   .then(function(status) {
@@ -2053,7 +2053,7 @@ function _testPushNotification() {
 function _doSubscribeAndTest(btn, log) {
   function addLog(msg) { log.textContent += msg + '\n'; }
 
-  fetch(CFG.server + '/vapid-public-key', { signal: AbortSignal.timeout(10000) })
+  fetch(CFG.server + '/vapid-public-key', { signal: AbortSignal.timeout(120000) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.publicKey) { addLog('   ERREUR : clé VAPID vide'); btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)'; return; }
@@ -2071,7 +2071,7 @@ function _doSubscribeAndTest(btn, log) {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ email: CFG.email, subscription: sub.toJSON() }),
-          signal: AbortSignal.timeout(10000)
+          signal: AbortSignal.timeout(120000)
         });
       })
       .then(function(r) { return r.json(); })
