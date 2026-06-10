@@ -1688,7 +1688,7 @@
 
   <button class="btn-enregistrer" onclick="saveSettings()">Enregistrer</button>
 
-  <button id="btnTestPush" onclick="_testPushNotification()" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--gold);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);cursor:pointer;">Tester les notifications (5 min)</button>
+  <button id="btnTestPush" onclick="_testPushNotification()" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--gold);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);cursor:pointer;">Tester les notifications (30s)</button>
   <pre id="pushDiagLog" style="margin-top:8px;padding:10px;background:#1a1a10;color:#c0b890;font-size:11px;border-radius:3px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;display:block;min-height:20px;"></pre>
 
   <button onclick="showPage('pointage')" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--light);cursor:pointer;">&#x2190; Retour</button>
@@ -2003,17 +2003,17 @@ function _testPushNotification() {
   // Etape 1 : permission notifications
   var perm = ('Notification' in window) ? Notification.permission : 'non supporté';
   addLog('1. Permission notifications : ' + perm);
-  if (perm === 'denied') { addLog('BLOQUE : notifications refusées dans les paramètres du navigateur'); btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)'; return; }
+  if (perm === 'denied') { addLog('BLOQUE : notifications refusées dans les paramètres du navigateur'); btn.disabled = false; btn.textContent = 'Tester les notifications (30s)'; return; }
 
   // Etape 2 : Service Worker
   if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
-    addLog('2. Service Worker : NON ACTIF'); btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)'; return;
+    addLog('2. Service Worker : NON ACTIF'); btn.disabled = false; btn.textContent = 'Tester les notifications (30s)'; return;
   }
   addLog('2. Service Worker : OK');
 
   // Etape 3 : PushManager
   if (!('PushManager' in window)) {
-    addLog('3. PushManager : NON SUPPORTE'); btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)'; return;
+    addLog('3. PushManager : NON SUPPORTE'); btn.disabled = false; btn.textContent = 'Tester les notifications (30s)'; return;
   }
   addLog('3. PushManager : OK');
 
@@ -2032,7 +2032,7 @@ function _testPushNotification() {
     addLog('   Abonnement enregistré : ' + (status.hasSubscription ? 'OUI' : 'NON'));
     if (status.subscriptionEndpoint) addLog('   Endpoint : ' + status.subscriptionEndpoint);
 
-    if (!status.pushAvailable) { addLog('ERREUR : pywebpush pas installé sur le serveur'); btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)'; return; }
+    if (!status.pushAvailable) { addLog('ERREUR : pywebpush pas installé sur le serveur'); btn.disabled = false; btn.textContent = 'Tester les notifications (30s)'; return; }
 
     if (!status.hasSubscription) {
       addLog('5. Pas d\'abonnement — inscription en cours...');
@@ -2046,7 +2046,7 @@ function _testPushNotification() {
   })
   .catch(function(e) {
     addLog('   ERREUR serveur : ' + e.message);
-    btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)';
+    btn.disabled = false; btn.textContent = 'Tester les notifications (30s)';
   });
 }
 
@@ -2056,7 +2056,7 @@ function _doSubscribeAndTest(btn, log) {
   fetch(CFG.server + '/vapid-public-key', { signal: AbortSignal.timeout(120000) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.publicKey) { addLog('   ERREUR : clé VAPID vide'); btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)'; return; }
+      if (!data.publicKey) { addLog('   ERREUR : clé VAPID vide'); btn.disabled = false; btn.textContent = 'Tester les notifications (30s)'; return; }
       addLog('   Clé VAPID récupérée : ' + data.publicKey.substring(0, 20) + '...');
 
       navigator.serviceWorker.ready.then(function(reg) {
@@ -2081,17 +2081,17 @@ function _doSubscribeAndTest(btn, log) {
           _doTestPush(btn, log);
         } else {
           addLog('   ERREUR envoi abonnement : ' + (data.error || '?'));
-          btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)';
+          btn.disabled = false; btn.textContent = 'Tester les notifications (30s)';
         }
       })
       .catch(function(e) {
         addLog('   ERREUR subscription : ' + e.message);
-        btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)';
+        btn.disabled = false; btn.textContent = 'Tester les notifications (30s)';
       });
     })
     .catch(function(e) {
       addLog('   ERREUR récup clé VAPID : ' + e.message);
-      btn.disabled = false; btn.textContent = 'Tester les notifications (5 min)';
+      btn.disabled = false; btn.textContent = 'Tester les notifications (30s)';
     });
 }
 
@@ -2102,25 +2102,25 @@ function _doTestPush(btn, log) {
   fetch(CFG.server + '/test-push', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ email: CFG.email, delay: 300 }),
+    body: JSON.stringify({ email: CFG.email, delay: 30 }),
     signal: AbortSignal.timeout(60000)
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     btn.disabled = false;
-    btn.textContent = 'Tester les notifications (5 min)';
+    btn.textContent = 'Tester les notifications (30s)';
     if (data.success) {
       addLog('   SUCCES : ' + data.message);
       addLog('');
       addLog('Tu devrais voir une notification IMMEDIATEMENT.');
-      addLog('Puis une 2eme dans 5 min (ferme l\'app pour tester).');
+      addLog('Puis une 2eme dans 30s (ferme l\'app pour tester).');
     } else {
       addLog('   ECHEC : ' + (data.error || 'Erreur inconnue'));
     }
   })
   .catch(function(e) {
     btn.disabled = false;
-    btn.textContent = 'Tester les notifications (5 min)';
+    btn.textContent = 'Tester les notifications (30s)';
     if (e.name === 'TimeoutError') {
       addLog('   Timeout — la notification a peut-etre ete envoyee.');
       addLog('   Verifie tes notifications, puis reessaie dans 1 min.');
