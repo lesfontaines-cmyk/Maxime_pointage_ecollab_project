@@ -10,20 +10,4 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && CONTAINER=\$(docker ps -qf ancestor=pointage) && docker cp Maxime_pointage_ecollab_serveur/server.py \$CONTAINER:/app/server.py && docker cp Maxime_pointage_ecollab_serveur/requirements.txt \$CONTAINER:/tmp/requirements.txt && (docker exec \$CONTAINER pip install --break-system-packages -r /tmp/requirements.txt 2>&1 || echo WARN_PIP) && docker restart \$CONTAINER && sleep 5 && docker exec \$CONTAINER python3 -c '
-import sys, json
-sys.path.insert(0, \"/app\")
-from pywebpush import webpush, WebPushException
-keys = json.load(open(\"/app/vapid_keys.json\"))
-subs = json.load(open(\"/app/push_subscriptions.json\"))
-for email, sub in subs.items():
-    try:
-        webpush(subscription_info=sub, data=json.dumps({\"title\": \"Test deploy\", \"body\": \"Push fonctionne depuis le serveur !\"}), vapid_private_key=keys[\"privateKey\"], vapid_claims={\"sub\": \"mailto:\" + email})
-        print(\"PUSH OK for\", email)
-    except WebPushException as e:
-        resp = \"\"
-        if hasattr(e, \"response\") and e.response: resp = str(e.response.status_code) + \" \" + e.response.text[:200]
-        print(\"PUSH FAIL for\", email, \":\", e, resp)
-    except Exception as e:
-        print(\"ERROR for\", email, \":\", e)
-' 2>&1"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && CONTAINER=\$(docker ps -qf ancestor=pointage) && docker cp Maxime_pointage_ecollab_serveur/server.py \$CONTAINER:/app/server.py && docker cp Maxime_pointage_ecollab_serveur/test_push.py \$CONTAINER:/app/test_push.py && docker cp Maxime_pointage_ecollab_serveur/requirements.txt \$CONTAINER:/tmp/requirements.txt && (docker exec \$CONTAINER pip install --break-system-packages -r /tmp/requirements.txt 2>&1 || echo WARN_PIP) && docker restart \$CONTAINER && sleep 5 && docker exec \$CONTAINER python3 /app/test_push.py 2>&1; echo DEPLOY_DONE"
