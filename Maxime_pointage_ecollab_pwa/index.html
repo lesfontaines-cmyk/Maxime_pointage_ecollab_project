@@ -3450,14 +3450,13 @@ function _backgroundRecapRefresh(force) {
     toast('Connexion requise pour synchroniser','warning');
     return;
   }
-  if (!force && _syncActive) return;
-  if (!force && (Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
-
   var currentDate = S.date || todayISO();
   var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
   var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
 
   if (!force) {
+    if (_syncActive) return;
+    if ((Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
     try {
       var lastSync = localStorage.getItem(syncKey);
       if (lastSync && (Date.now() - new Date(lastSync).getTime()) < SYNC_ECOLLAB_TTL) return;
@@ -3466,6 +3465,7 @@ function _backgroundRecapRefresh(force) {
   _lastSyncTime = Date.now();
 
   showSyncIndicator();
+  if (force) toast('Synchronisation eCollab en cours…', 'info', 3000);
 
   fetch(server + '/fetch-week', {
     method: 'POST',
