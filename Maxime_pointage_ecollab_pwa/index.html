@@ -3532,31 +3532,43 @@ function forceAppUpdate() {
   var link = document.getElementById('forceUpdateLink');
   if (link) link.textContent = 'Mise a jour en cours...';
 
-  // 1. Synchroniser le state depuis le serveur
   refreshFromServer();
-
-  // 2. Rafraîchir le recap eCollab en tâche de fond
   _backgroundRecapRefresh();
 
-  // 3. Forcer la mise à jour du Service Worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(function(reg) {
-      if (reg) {
-        reg.update().then(function() {
-          if (link) link.textContent = 'Mise a jour terminee !';
-          setTimeout(function() {
-            if (link) link.textContent = 'Forcer la mise a jour';
-          }, 3000);
-        }).catch(function() {
-          if (link) link.textContent = 'Forcer la mise a jour';
-        });
-      } else {
-        if (link) link.textContent = 'Forcer la mise a jour';
-      }
-    });
-  } else {
+  if (!('serviceWorker' in navigator)) {
     if (link) link.textContent = 'Forcer la mise a jour';
+    return;
   }
+
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    if (!reg) {
+      if (link) link.textContent = 'Forcer la mise a jour';
+      return;
+    }
+
+    reg.update().then(function() {
+      var newWorker = reg.installing || reg.waiting;
+      if (!newWorker) {
+        if (link) link.textContent = 'Deja a jour !';
+        setTimeout(function() {
+          if (link) link.textContent = 'Forcer la mise a jour';
+        }, 3000);
+        return;
+      }
+      if (link) link.textContent = 'Installation...';
+      newWorker.addEventListener('statechange', function() {
+        if (newWorker.state === 'activated') {
+          if (link) link.textContent = 'Rechargement...';
+          window.location.reload();
+        }
+      });
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+    }).catch(function() {
+      if (link) link.textContent = 'Forcer la mise a jour';
+    });
+  });
 }
 
 // ======================================
