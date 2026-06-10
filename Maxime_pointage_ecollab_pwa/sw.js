@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '4.1.7';
+var APP_VERSION = '4.1.9';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -104,14 +104,29 @@ self.addEventListener('push', function(event) {
   try { data = event.data.json(); } catch(e) {
     data = { title: 'Pointage CM', body: event.data ? event.data.text() : '' };
   }
+  var title = data.title || 'Pointage CM';
+  var isCloture = title.indexOf('lôture') !== -1;
+
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Pointage CM', {
+    self.registration.showNotification(title, {
       body: data.body || '',
       icon: './icon-192.png',
       badge: './icon-192.png',
       tag: 'cloture-result',
       renotify: true,
       requireInteraction: !!data.isError
+    }).then(function() {
+      if (isCloture) {
+        return self.clients.matchAll({ type: 'window' }).then(function(clients) {
+          clients.forEach(function(client) {
+            client.postMessage({
+              type: 'CLOTURE_PUSH_RESULT',
+              success: !data.isError,
+              body: data.body || ''
+            });
+          });
+        });
+      }
     })
   );
 });
@@ -259,5 +274,8 @@ function _executerCloture() {
 self.addEventListener('message', function(event) {
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: APP_VERSION });
+  }
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
   }
 });

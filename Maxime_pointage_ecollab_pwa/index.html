@@ -3229,6 +3229,7 @@ function _clotureDirectFetch(job) {
   })
   .catch(function(e){
     console.log('[CLOTURE] Réponse HTTP non reçue — notification push attendue:', e.message);
+    toast('Clôture en cours… La notification push confirmera le résultat.', 'info', 6000);
   });
 }
 
@@ -3256,6 +3257,38 @@ document.addEventListener('visibilitychange', function() {
     .catch(function() {});
   }
 });
+
+// Recevoir les messages du SW (résultat push de clôture)
+if (navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'CLOTURE_PUSH_RESULT') {
+      if (_pendingClotureJob) {
+        _pendingClotureJob = null;
+        if (event.data.success) {
+          S.cloture=true; _setCacheValide(); save(); render();
+          toast('Clôture réussie !', 'success', 5000);
+        } else {
+          toast('Échec clôture : ' + (event.data.body || 'Erreur'), 'error', 8000);
+        }
+      }
+    }
+  });
+}
+
+// Timeout : abandonner le job pending après 10 minutes
+var _clotureTimeoutId = null;
+var _origLancerCloture = _lancerClotureBackground;
+_lancerClotureBackground = function(plages, pointageDate, dateLabel) {
+  if (_clotureTimeoutId) clearTimeout(_clotureTimeoutId);
+  _origLancerCloture(plages, pointageDate, dateLabel);
+  _clotureTimeoutId = setTimeout(function() {
+    if (_pendingClotureJob) {
+      console.log('[CLOTURE] Timeout 10 min — abandon du job pending');
+      _pendingClotureJob = null;
+      _clotureTimeoutId = null;
+    }
+  }, 600000);
+};
 
 // ======================================
 // LOGIN / LOGOUT
@@ -3499,31 +3532,43 @@ function forceAppUpdate() {
   var link = document.getElementById('forceUpdateLink');
   if (link) link.textContent = 'Mise a jour en cours...';
 
-  // 1. Synchroniser le state depuis le serveur
   refreshFromServer();
-
-  // 2. Rafraîchir le recap eCollab en tâche de fond
   _backgroundRecapRefresh();
 
-  // 3. Forcer la mise à jour du Service Worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(function(reg) {
-      if (reg) {
-        reg.update().then(function() {
-          if (link) link.textContent = 'Mise a jour terminee !';
-          setTimeout(function() {
-            if (link) link.textContent = 'Forcer la mise a jour';
-          }, 3000);
-        }).catch(function() {
-          if (link) link.textContent = 'Forcer la mise a jour';
-        });
-      } else {
-        if (link) link.textContent = 'Forcer la mise a jour';
-      }
-    });
-  } else {
+  if (!('serviceWorker' in navigator)) {
     if (link) link.textContent = 'Forcer la mise a jour';
+    return;
   }
+
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    if (!reg) {
+      if (link) link.textContent = 'Forcer la mise a jour';
+      return;
+    }
+
+    reg.update().then(function() {
+      var newWorker = reg.installing || reg.waiting;
+      if (!newWorker) {
+        if (link) link.textContent = 'Deja a jour !';
+        setTimeout(function() {
+          if (link) link.textContent = 'Forcer la mise a jour';
+        }, 3000);
+        return;
+      }
+      if (link) link.textContent = 'Installation...';
+      newWorker.addEventListener('statechange', function() {
+        if (newWorker.state === 'activated') {
+          if (link) link.textContent = 'Rechargement...';
+          window.location.reload();
+        }
+      });
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+    }).catch(function() {
+      if (link) link.textContent = 'Forcer la mise a jour';
+    });
+  });
 }
 
 // ======================================
