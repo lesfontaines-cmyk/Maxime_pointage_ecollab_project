@@ -2103,7 +2103,7 @@ function _doTestPush(btn, log) {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ email: CFG.email, delay: 300 }),
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(60000)
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -2121,7 +2121,12 @@ function _doTestPush(btn, log) {
   .catch(function(e) {
     btn.disabled = false;
     btn.textContent = 'Tester les notifications (5 min)';
-    addLog('   ERREUR : ' + e.message);
+    if (e.name === 'TimeoutError') {
+      addLog('   Timeout — la notification a peut-etre ete envoyee.');
+      addLog('   Verifie tes notifications, puis reessaie dans 1 min.');
+    } else {
+      addLog('   ERREUR : ' + e.message);
+    }
   });
 }
 
