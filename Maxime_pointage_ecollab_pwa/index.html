@@ -1410,6 +1410,7 @@
   </div>
   <div class="header-title">Pointage</div>
   <div class="header-sub" id="pDateDisplay">--</div>
+  <div id="lastSyncLabel" style="font-size:10px;color:var(--light);opacity:0.5;letter-spacing:1px;margin-top:2px;text-align:center;"></div>
 </div>
 
 <button class="logout-btn" onclick="logout()" title="Deconnexion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
@@ -1851,7 +1852,10 @@ document.addEventListener('visibilitychange', function() {
 });
 // Auto-sync toutes les 2 minutes
 setInterval(function() {
-  if(!document.hidden && CFG.server && CFG.email) refreshFromServer();
+  if(!document.hidden && CFG.server && CFG.email) {
+    refreshFromServer();
+    _backgroundRecapRefresh();
+  }
 }, 2 * 60 * 1000);
 
 function loadSettings() {
@@ -3416,7 +3420,27 @@ function setDefaultField(i,f,v) { DEFAULTS[i][f]=v; }
 var _syncActive = false;
 var _lastSyncTime = 0;
 var SYNC_COOLDOWN = 5 * 60 * 1000;
-var SYNC_ECOLLAB_TTL = 8 * 60 * 60 * 1000;
+var SYNC_ECOLLAB_TTL = 60 * 60 * 1000;
+
+function _updateLastSyncLabel() {
+  var el = document.getElementById('lastSyncLabel');
+  if (!el) return;
+  var currentDate = S.date || todayISO();
+  var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+  var lastSync = localStorage.getItem(syncKey);
+  if (!lastSync) { el.textContent = ''; return; }
+  var d = new Date(lastSync);
+  var now = new Date();
+  var diffMs = now - d;
+  var diffMin = Math.floor(diffMs / 60000);
+  var label;
+  if (diffMin < 1) label = "a l'instant";
+  else if (diffMin < 60) label = 'il y a ' + diffMin + ' min';
+  else if (diffMin < 1440) label = 'il y a ' + Math.floor(diffMin/60) + 'h' + (diffMin%60 > 0 ? String(diffMin%60).padStart(2,'0') : '');
+  else label = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+  el.textContent = 'Sync eCollab : ' + label;
+}
+
 function _setSyncOffset(on) {
   var offset = on ? '48px' : '16px';
   document.body.style.paddingTop = on ? '32px' : '';
@@ -3522,6 +3546,7 @@ function _backgroundRecapRefresh(force) {
       updateUI();
       renderPointage();
       toast('Donnees eCollab synchronisees','success');
+      _updateLastSyncLabel();
     } else {
       toast('Sync eCollab : aucune donnee','warning');
     }
@@ -3600,6 +3625,8 @@ function init() {
     _subscribeToPush();
     // Rafraîchir le recap eCollab en tâche de fond à chaque chargement
     _backgroundRecapRefresh();
+    _updateLastSyncLabel();
+    setInterval(_updateLastSyncLabel, 60000);
   } else {
     // Pas de session → login
     showPage('login');
