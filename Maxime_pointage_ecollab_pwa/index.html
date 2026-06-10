@@ -3479,6 +3479,8 @@ function _backgroundRecapRefresh(force) {
   var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
 
   if (!force) {
+    var heure = new Date().getHours();
+    if (heure < 7 || heure >= 19) return;
     if (_syncActive) return;
     if ((Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
     try {
