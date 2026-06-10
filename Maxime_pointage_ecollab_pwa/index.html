@@ -3229,6 +3229,7 @@ function _clotureDirectFetch(job) {
   })
   .catch(function(e){
     console.log('[CLOTURE] Réponse HTTP non reçue — notification push attendue:', e.message);
+    toast('Clôture en cours… La notification push confirmera le résultat.', 'info', 6000);
   });
 }
 
@@ -3256,6 +3257,38 @@ document.addEventListener('visibilitychange', function() {
     .catch(function() {});
   }
 });
+
+// Recevoir les messages du SW (résultat push de clôture)
+if (navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'CLOTURE_PUSH_RESULT') {
+      if (_pendingClotureJob) {
+        _pendingClotureJob = null;
+        if (event.data.success) {
+          S.cloture=true; _setCacheValide(); save(); render();
+          toast('Clôture réussie !', 'success', 5000);
+        } else {
+          toast('Échec clôture : ' + (event.data.body || 'Erreur'), 'error', 8000);
+        }
+      }
+    }
+  });
+}
+
+// Timeout : abandonner le job pending après 10 minutes
+var _clotureTimeoutId = null;
+var _origLancerCloture = _lancerClotureBackground;
+_lancerClotureBackground = function(plages, pointageDate, dateLabel) {
+  if (_clotureTimeoutId) clearTimeout(_clotureTimeoutId);
+  _origLancerCloture(plages, pointageDate, dateLabel);
+  _clotureTimeoutId = setTimeout(function() {
+    if (_pendingClotureJob) {
+      console.log('[CLOTURE] Timeout 10 min — abandon du job pending');
+      _pendingClotureJob = null;
+      _clotureTimeoutId = null;
+    }
+  }, 600000);
+};
 
 // ======================================
 // LOGIN / LOGOUT
