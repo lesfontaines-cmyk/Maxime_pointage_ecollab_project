@@ -3415,7 +3415,8 @@ function setDefaultField(i,f,v) { DEFAULTS[i][f]=v; }
 // ======================================
 var _syncActive = false;
 var _lastSyncTime = 0;
-var SYNC_COOLDOWN = 5 * 60 * 1000; // 5 minutes entre chaque sync auto
+var SYNC_COOLDOWN = 5 * 60 * 1000;
+var SYNC_ECOLLAB_TTL = 8 * 60 * 60 * 1000;
 function _setSyncOffset(on) {
   var offset = on ? '48px' : '16px';
   document.body.style.paddingTop = on ? '32px' : '';
@@ -3449,16 +3450,22 @@ function _backgroundRecapRefresh(force) {
     toast('Connexion requise pour synchroniser','warning');
     return;
   }
-  // Cooldown : pas de sync auto si la dernière date de moins de 5 min
   if (!force && _syncActive) return;
   if (!force && (Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
-  _lastSyncTime = Date.now();
-
-  showSyncIndicator();
 
   var currentDate = S.date || todayISO();
   var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
   var syncKey = 'eco_recap_sync_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+
+  if (!force) {
+    try {
+      var lastSync = localStorage.getItem(syncKey);
+      if (lastSync && (Date.now() - new Date(lastSync).getTime()) < SYNC_ECOLLAB_TTL) return;
+    } catch(e) {}
+  }
+  _lastSyncTime = Date.now();
+
+  showSyncIndicator();
 
   fetch(server + '/fetch-week', {
     method: 'POST',
