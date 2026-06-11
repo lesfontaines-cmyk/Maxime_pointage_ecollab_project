@@ -2747,6 +2747,7 @@ function loadDefaultPlages() {
 // RECAP SEMAINE / MOIS
 // ======================================
 var _moisFr = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
+var _moisAbr = ['Jan','Fev','Mars','Avr','Mai','Juin','Juil','Aout','Sep','Oct','Nov','Dec'];
 
 function setRecapView(view) {
   _recapView = view;
@@ -3242,7 +3243,7 @@ function _renderCumulHS(year, month) {
   var hasMissing = false;
   months.forEach(function(mk) {
     var parts = mk.split('-');
-    var label = _moisFr[parseInt(parts[1])-1].slice(0,3) + '.';
+    var label = _moisAbr[parseInt(parts[1])-1];
     if (mk > currentMonthKey) {
       details.push('<span style="opacity:0.3">' + label + '</span>');
       return;
