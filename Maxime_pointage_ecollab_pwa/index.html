@@ -1641,6 +1641,13 @@
     </div>
     <div class="recap-total-detail" id="recapWeekDetail"></div>
   </div>
+  <div class="recap-total-card" id="recapWeekHS" style="margin-top:10px;display:none">
+    <div>
+      <div class="recap-total-label">Heures supp.</div>
+      <div class="recap-total-value" id="recapWeekHSValue">--</div>
+    </div>
+    <div class="recap-total-detail">base 35h/sem.</div>
+  </div>
 </div>
 
 <!-- COMPTEURS ECOLLAB (visible en vue mois) -->
@@ -3021,6 +3028,21 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
   document.getElementById('recapWeekTotal').textContent = _fmtMinutes(weekTotalMin);
   document.getElementById('recapWeekDetail').innerHTML =
     daysWorked + ' jour' + (daysWorked > 1 ? 's' : '') + ' travaille' + (daysWorked > 1 ? 's' : '');
+
+  var hsEl = document.getElementById('recapWeekHS');
+  var hsValEl = document.getElementById('recapWeekHSValue');
+  if (hsEl && hsValEl) {
+    var diffMin = weekTotalMin - (35 * 60);
+    if (weekTotalMin > 0) {
+      hsEl.style.display = 'flex';
+      var sign = diffMin >= 0 ? '+' : '-';
+      var absDiff = Math.abs(diffMin);
+      hsValEl.textContent = sign + Math.floor(absDiff / 60) + 'h' + pad(absDiff % 60);
+      hsValEl.style.color = diffMin > 0 ? 'var(--gold)' : diffMin < 0 ? 'var(--red)' : '';
+    } else {
+      hsEl.style.display = 'none';
+    }
+  }
 }
 
 function _renderRecapMonth(year, month, today, ecollabDays) {
