@@ -3189,7 +3189,9 @@ function _getExerciseMonths(year, month) {
   return { exYear: exYear, months: months };
 }
 
+var _fetchExerciseLock = false;
 function _fetchExerciseMonths(year, month) {
+  if (_fetchExerciseLock) return;
   var server = CFG.server || localStorage.getItem('eco_server') || '';
   if (!server || !CFG.email || !CFG.password || !CFG.url) return;
   var info = _getExerciseMonths(year, month);
@@ -3202,8 +3204,9 @@ function _fetchExerciseMonths(year, month) {
     if (!localStorage.getItem(cacheKey)) missing.push(mk);
   });
   if (missing.length === 0) return;
+  _fetchExerciseLock = true;
   function fetchNext(i) {
-    if (i >= missing.length) return;
+    if (i >= missing.length) { _fetchExerciseLock = false; return; }
     var mk = missing[i];
     var dateStr = mk + '-15';
     fetch(server + '/fetch-week', {
@@ -3213,18 +3216,25 @@ function _fetchExerciseMonths(year, month) {
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      var prefix = 'eco_recap_' + (CFG.email||'') + '_' + mk;
+      var recapPrefix = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
       if (data.success && data.days) {
         try {
-          localStorage.setItem('eco_recap_' + (CFG.email||'') + '_' + mk, JSON.stringify(data.days));
+          localStorage.setItem(prefix, JSON.stringify(data.days));
           localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + mk, new Date().toISOString());
         } catch(e) {}
-        if (data.recap) {
-          try { localStorage.setItem('eco_recap_data_' + (CFG.email||'') + '_' + mk, JSON.stringify(data.recap)); } catch(e) {}
-        }
-        _renderCumulHS(year, month);
+        try { localStorage.setItem(recapPrefix, JSON.stringify(data.recap || {empty:true})); } catch(e) {}
+      } else {
+        try { localStorage.setItem(prefix, JSON.stringify({})); } catch(e) {}
+        try { localStorage.setItem(recapPrefix, JSON.stringify({empty:true})); } catch(e) {}
       }
+      _renderCumulHS(year, month);
     })
-    .catch(function() {})
+    .catch(function() {
+      try { localStorage.setItem('eco_recap_' + (CFG.email||'') + '_' + mk, JSON.stringify({})); } catch(e) {}
+      try { localStorage.setItem('eco_recap_data_' + (CFG.email||'') + '_' + mk, JSON.stringify({empty:true})); } catch(e) {}
+      _renderCumulHS(year, month);
+    })
     .then(function() { fetchNext(i + 1); });
   }
   fetchNext(0);
@@ -3251,13 +3261,15 @@ function _renderCumulHS(year, month) {
     var recapKey = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
     var recap = null;
     try { recap = JSON.parse(localStorage.getItem(recapKey)); } catch(e) {}
-    if (recap) {
+    if (!recap) {
+      details.push('<span style="opacity:0.4">' + label + ' --</span>');
+      hasMissing = true;
+    } else if (recap.empty) {
+      details.push('<span style="opacity:0.5">' + label + ' 0h</span>');
+    } else {
       var hs = parseFloat(recap.totalHeures) || 0;
       cumul += hs;
       details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : hs < 0 ? 'color:var(--red)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
-    } else {
-      details.push('<span style="opacity:0.4">' + label + ' --</span>');
-      hasMissing = true;
     }
   });
 
