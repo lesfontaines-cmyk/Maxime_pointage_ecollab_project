@@ -2170,7 +2170,7 @@ function showPage(p) {
     document.getElementById('recapViewWeek').className = 'recap-view-btn' + (_recapView === 'week' ? ' active' : '');
     document.getElementById('recapViewMonth').className = 'recap-view-btn' + (_recapView === 'month' ? ' active' : '');
     document.getElementById('recapWeekNav').style.display = (_recapView === 'week') ? 'flex' : 'none';
-    document.getElementById('recapMonthHeader').style.display = (_recapView === 'month') ? 'block' : 'none';
+    document.getElementById('recapMonthHeader').style.display = (_recapView === 'month') ? 'flex' : 'none';
     document.getElementById('recapEcollabSection').style.display = (_recapView === 'month') ? 'block' : 'none';
     renderRecap();
   } else {
@@ -2753,7 +2753,7 @@ function setRecapView(view) {
   document.getElementById('recapViewWeek').className = 'recap-view-btn' + (view === 'week' ? ' active' : '');
   document.getElementById('recapViewMonth').className = 'recap-view-btn' + (view === 'month' ? ' active' : '');
   document.getElementById('recapWeekNav').style.display = (view === 'week') ? 'flex' : 'none';
-  document.getElementById('recapMonthHeader').style.display = (view === 'month') ? 'block' : 'none';
+  document.getElementById('recapMonthHeader').style.display = (view === 'month') ? 'flex' : 'none';
   document.getElementById('recapEcollabSection').style.display = (view === 'month') ? 'block' : 'none';
   document.getElementById('recapTitle').textContent = (view === 'week') ? 'Recap de la semaine' : 'Recap du mois';
   renderRecapContent();
