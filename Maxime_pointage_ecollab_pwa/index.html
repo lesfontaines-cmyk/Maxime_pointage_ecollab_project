@@ -1645,11 +1645,11 @@
 
 <!-- COMPTEURS ECOLLAB (visible en vue mois) -->
 <div class="recap-ecollab-section" id="recapEcollabSection" style="display:none">
-  <div class="recap-ecollab-title">Compteurs Ecollaboratrice</div>
+  <div class="recap-ecollab-title">Compteurs du mois</div>
   <div class="recap-ecollab-grid" id="recapEcollabGrid"></div>
-  <div id="recapCumulHSSection" style="margin-top:16px;">
-    <div class="recap-ecollab-title">Cumul heures supp. (exercice)</div>
-    <div id="recapCumulHS" style="text-align:center;padding:12px;"></div>
+  <div id="recapCumulHSSection" style="margin-top:20px;">
+    <div class="recap-ecollab-title">Cumul heures supplementaires</div>
+    <div id="recapCumulHS"></div>
   </div>
 </div>
 
@@ -2919,6 +2919,7 @@ function renderRecapContent() {
     _renderRecapMonth(year, month, today, monthCached);
     _renderEcollabRecap(t.key);
     _renderCumulHS(year, month);
+    _fetchExerciseMonths(year, month);
   }
 }
 
@@ -3159,9 +3160,7 @@ function _renderEcollabRecap(monthKey) {
   grid.innerHTML = html;
 }
 
-function _renderCumulHS(year, month) {
-  var el = document.getElementById('recapCumulHS');
-  if (!el) return;
+function _getExerciseMonths(year, month) {
   var exYear = (month >= 10) ? year : year - 1;
   var months = [];
   for (var y = exYear, m = 10; ; ) {
@@ -3172,9 +3171,56 @@ function _renderCumulHS(year, month) {
     if (m > 12) { m = 1; y++; }
     if (months.length > 12) break;
   }
+  return { exYear: exYear, months: months };
+}
+
+function _fetchExerciseMonths(year, month) {
+  var server = CFG.server || localStorage.getItem('eco_server') || '';
+  if (!server || !CFG.email || !CFG.password || !CFG.url) return;
+  var info = _getExerciseMonths(year, month);
+  var missing = [];
+  info.months.forEach(function(mk) {
+    var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + mk;
+    if (!localStorage.getItem(cacheKey)) missing.push(mk);
+  });
+  if (missing.length === 0) return;
+  function fetchNext(i) {
+    if (i >= missing.length) return;
+    var mk = missing[i];
+    var dateStr = mk + '-15';
+    fetch(server + '/fetch-week', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: dateStr })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success && data.days) {
+        try {
+          localStorage.setItem('eco_recap_' + (CFG.email||'') + '_' + mk, JSON.stringify(data.days));
+          localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + mk, new Date().toISOString());
+        } catch(e) {}
+        if (data.recap) {
+          try { localStorage.setItem('eco_recap_data_' + (CFG.email||'') + '_' + mk, JSON.stringify(data.recap)); } catch(e) {}
+        }
+        _renderCumulHS(year, month);
+      }
+    })
+    .catch(function() {})
+    .then(function() { fetchNext(i + 1); });
+  }
+  fetchNext(0);
+}
+
+function _renderCumulHS(year, month) {
+  var el = document.getElementById('recapCumulHS');
+  if (!el) return;
+  var info = _getExerciseMonths(year, month);
+  var exYear = info.exYear;
+  var months = info.months;
   var cumul = 0;
   var details = [];
-  var missing = [];
+  var hasMissing = false;
   months.forEach(function(mk) {
     var recapKey = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
     var recap = null;
@@ -3184,19 +3230,35 @@ function _renderCumulHS(year, month) {
     var parts = mk.split('-');
     var label = _moisFr[parseInt(parts[1])-1].slice(0,3) + '.';
     if (recap) {
-      details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
+      details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : hs < 0 ? 'color:var(--red)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
     } else {
       details.push('<span style="opacity:0.4">' + label + ' --</span>');
-      missing.push(mk);
+      hasMissing = true;
     }
   });
 
+  var cumulJours = Math.round((cumul / 7) * 100) / 100;
   var exLabel = 'Oct. ' + exYear + ' → Sep. ' + (exYear + 1);
-  var html = '<div style="font-family:var(--serif);font-size:28px;color:' + (cumul >= 0 ? 'var(--gold)' : 'var(--light)') + '">' + (cumul > 0 ? '+' : '') + cumul + 'h</div>';
-  html += '<div style="font-size:10px;color:var(--light);opacity:0.6;margin:4px 0 8px">' + exLabel + '</div>';
+
+  var html = '<div class="recap-ecollab-grid" style="margin-bottom:10px">';
+  html += '<div class="recap-ecollab-item">';
+  html += '<div class="recap-ecollab-item-label">Cumul heures</div>';
+  html += '<div class="recap-ecollab-item-value" style="color:' + (cumul > 0 ? 'var(--gold)' : cumul < 0 ? 'var(--red)' : '') + '">' + (cumul > 0 ? '+' : '') + cumul + 'h</div>';
+  html += '<div class="recap-ecollab-item-sub">' + exLabel + '</div>';
+  html += '</div>';
+  html += '<div class="recap-ecollab-item">';
+  html += '<div class="recap-ecollab-item-label">Cumul jours</div>';
+  html += '<div class="recap-ecollab-item-value" style="color:' + (cumulJours > 0 ? 'var(--gold)' : cumulJours < 0 ? 'var(--red)' : '') + '">' + (cumulJours > 0 ? '+' : '') + cumulJours + 'j</div>';
+  html += '<div class="recap-ecollab-item-sub">base 7h/jour</div>';
+  html += '</div>';
+  html += '</div>';
+
   html += '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;font-size:11px;color:var(--light)">';
   html += details.join('');
   html += '</div>';
+  if (hasMissing) {
+    html += '<div style="text-align:center;margin-top:8px;font-size:10px;color:var(--light);opacity:0.5"><div class="loader-ring" style="width:14px;height:14px;border-width:2px;margin:0 auto 4px"></div>Chargement des mois manquants…</div>';
+  }
   el.innerHTML = html;
 }
 
