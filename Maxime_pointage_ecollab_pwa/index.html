@@ -1619,8 +1619,12 @@
 </div>
 
 <!-- HEADER MOIS (visible en vue mois) -->
-<div class="recap-month-header" id="recapMonthHeader" style="display:none">
-  <div class="recap-month-label" id="recapMonthLabel">--</div>
+<div class="recap-week-nav" id="recapMonthHeader" style="display:none">
+  <button class="recap-nav-arrow" onclick="recapPrevMonth()">&#x2190;</button>
+  <div class="recap-nav-center">
+    <div class="recap-week-label" id="recapMonthLabel">--</div>
+  </div>
+  <button class="recap-nav-arrow" onclick="recapNextMonth()">&#x2192;</button>
 </div>
 
 <!-- CONTENU DYNAMIQUE -->
@@ -1643,6 +1647,10 @@
 <div class="recap-ecollab-section" id="recapEcollabSection" style="display:none">
   <div class="recap-ecollab-title">Compteurs Ecollaboratrice</div>
   <div class="recap-ecollab-grid" id="recapEcollabGrid"></div>
+  <div id="recapCumulHSSection" style="margin-top:16px;">
+    <div class="recap-ecollab-title">Cumul heures supp. (exercice)</div>
+    <div id="recapCumulHS" style="text-align:center;padding:12px;"></div>
+  </div>
 </div>
 
 <!-- REFRESH -->
@@ -1890,6 +1898,7 @@ var _toastT=null;
 var _recapFrom='main';
 var _recapView='week';
 var _recapWeekOffset=0;
+var _recapMonthOffset=0;
 function toast(msg,type,dur) {
   type=type||'info'; dur=dur||4000;
   var el=document.getElementById('toast');
@@ -2154,6 +2163,7 @@ function showPage(p) {
     renderPointage();
   } else if(p==='recap') {
     _recapWeekOffset = 0;
+    _recapMonthOffset = 0;
     rc.style.display='block'; pt.style.display='none'; m.style.display='none'; s.style.display='none'; l.className='login-screen';
     document.getElementById('recapBackBtn').textContent='\u2190 Retour '+ (_recapFrom==='pointage'?'au pointage':'à la saisie');
     // Reset toggle UI
@@ -2739,6 +2749,7 @@ var _moisFr = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout',
 function setRecapView(view) {
   _recapView = view;
   _recapWeekOffset = 0;
+  _recapMonthOffset = 0;
   document.getElementById('recapViewWeek').className = 'recap-view-btn' + (view === 'week' ? ' active' : '');
   document.getElementById('recapViewMonth').className = 'recap-view-btn' + (view === 'month' ? ' active' : '');
   document.getElementById('recapWeekNav').style.display = (view === 'week') ? 'flex' : 'none';
@@ -2750,6 +2761,45 @@ function setRecapView(view) {
 
 function recapPrevWeek() { _recapWeekOffset--; renderRecapContent(); }
 function recapNextWeek() { _recapWeekOffset++; renderRecapContent(); }
+function recapPrevMonth() { _recapMonthOffset--; _fetchMonthIfNeeded(); renderRecapContent(); }
+function recapNextMonth() { _recapMonthOffset++; _fetchMonthIfNeeded(); renderRecapContent(); }
+
+function _getTargetMonth() {
+  var base = S.date || todayISO();
+  var y = parseInt(base.slice(0,4));
+  var m = parseInt(base.slice(5,7)) - 1 + _recapMonthOffset;
+  y += Math.floor(m / 12);
+  m = ((m % 12) + 12) % 12;
+  return { year: y, month: m + 1, key: y + '-' + String(m + 1).padStart(2, '0') };
+}
+
+function _fetchMonthIfNeeded() {
+  var t = _getTargetMonth();
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + t.key;
+  if (localStorage.getItem(cacheKey)) return;
+  var server = CFG.server || localStorage.getItem('eco_server') || '';
+  if (!server || !CFG.email || !CFG.password || !CFG.url) return;
+  var dateStr = t.key + '-15';
+  fetch(server + '/fetch-week', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: dateStr })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.days) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data.days));
+        localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + t.key, new Date().toISOString());
+      } catch(e) {}
+      if (data.recap) {
+        try { localStorage.setItem('eco_recap_data_' + (CFG.email||'') + '_' + t.key, JSON.stringify(data.recap)); } catch(e) {}
+      }
+      renderRecapContent();
+    }
+  })
+  .catch(function() {});
+}
 
 function renderRecap(forceRefresh) {
   var currentDate = S.date || todayISO();
@@ -2854,15 +2904,21 @@ function renderRecapContent() {
 
     _renderRecapDays(weekDays, today, joursFr, cached);
   } else {
-    // Vue mois
-    var year = parseInt(currentDate.slice(0,4));
-    var month = parseInt(currentDate.slice(5,7));
+    // Vue mois avec offset
+    var t = _getTargetMonth();
+    var year = t.year;
+    var month = t.month;
+    var monthCacheKey = 'eco_recap_' + (CFG.email||'') + '_' + t.key;
+    var monthCached = null;
+    try { monthCached = JSON.parse(localStorage.getItem(monthCacheKey)); } catch(e) {}
+
     document.getElementById('recapMonthLabel').textContent = _moisFr[month-1] + ' ' + year;
     document.getElementById('recapWeekDisplay').textContent = (_moisFr[month-1] + ' ' + year).toUpperCase();
     document.getElementById('recapTotalLabel').textContent = 'Total mois';
 
-    _renderRecapMonth(year, month, today, cached);
-    _renderEcollabRecap();
+    _renderRecapMonth(year, month, today, monthCached);
+    _renderEcollabRecap(t.key);
+    _renderCumulHS(year, month);
   }
 }
 
@@ -3044,9 +3100,9 @@ function _renderRecapMonth(year, month, today, ecollabDays) {
     monthDaysWorked + ' jour' + (monthDaysWorked > 1 ? 's' : '') + ' travaille' + (monthDaysWorked > 1 ? 's' : '');
 }
 
-function _renderEcollabRecap() {
-  var currentDate = S.date || todayISO();
-  var recapCacheKey = 'eco_recap_data_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+function _renderEcollabRecap(monthKey) {
+  var mk = monthKey || (S.date || todayISO()).slice(0,7);
+  var recapCacheKey = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
   var recap = null;
   try { recap = JSON.parse(localStorage.getItem(recapCacheKey)); } catch(e) {}
 
@@ -3101,6 +3157,47 @@ function _renderEcollabRecap() {
   });
 
   grid.innerHTML = html;
+}
+
+function _renderCumulHS(year, month) {
+  var el = document.getElementById('recapCumulHS');
+  if (!el) return;
+  var exYear = (month >= 10) ? year : year - 1;
+  var months = [];
+  for (var y = exYear, m = 10; ; ) {
+    var mk = y + '-' + String(m).padStart(2, '0');
+    months.push(mk);
+    if (y === year && m === month) break;
+    m++;
+    if (m > 12) { m = 1; y++; }
+    if (months.length > 12) break;
+  }
+  var cumul = 0;
+  var details = [];
+  var missing = [];
+  months.forEach(function(mk) {
+    var recapKey = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
+    var recap = null;
+    try { recap = JSON.parse(localStorage.getItem(recapKey)); } catch(e) {}
+    var hs = recap ? (parseFloat(recap.totalHeures) || 0) : 0;
+    cumul += hs;
+    var parts = mk.split('-');
+    var label = _moisFr[parseInt(parts[1])-1].slice(0,3) + '.';
+    if (recap) {
+      details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
+    } else {
+      details.push('<span style="opacity:0.4">' + label + ' --</span>');
+      missing.push(mk);
+    }
+  });
+
+  var exLabel = 'Oct. ' + exYear + ' → Sep. ' + (exYear + 1);
+  var html = '<div style="font-family:var(--serif);font-size:28px;color:' + (cumul >= 0 ? 'var(--gold)' : 'var(--light)') + '">' + (cumul > 0 ? '+' : '') + cumul + 'h</div>';
+  html += '<div style="font-size:10px;color:var(--light);opacity:0.6;margin:4px 0 8px">' + exLabel + '</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;font-size:11px;color:var(--light)">';
+  html += details.join('');
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 function _renderRecapError(msg) {
