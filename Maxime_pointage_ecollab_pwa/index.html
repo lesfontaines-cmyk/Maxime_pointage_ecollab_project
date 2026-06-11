@@ -1630,10 +1630,10 @@
 <!-- CONTENU DYNAMIQUE -->
 <div class="recap-days" id="recapDaysList"></div>
 
-<div class="ornament">&middot; &middot; &middot;</div>
+<div class="ornament" id="recapOrnament">&middot; &middot; &middot;</div>
 
 <!-- TOTAL -->
-<div class="recap-total-section">
+<div class="recap-total-section" id="recapTotalSection">
   <div class="recap-total-card">
     <div>
       <div class="recap-total-label" id="recapTotalLabel">Total semaine</div>
@@ -2172,6 +2172,8 @@ function showPage(p) {
     document.getElementById('recapWeekNav').style.display = (_recapView === 'week') ? 'flex' : 'none';
     document.getElementById('recapMonthHeader').style.display = (_recapView === 'month') ? 'flex' : 'none';
     document.getElementById('recapEcollabSection').style.display = (_recapView === 'month') ? 'block' : 'none';
+    document.getElementById('recapTotalSection').style.display = (_recapView === 'month') ? 'none' : 'block';
+    document.getElementById('recapOrnament').style.display = (_recapView === 'month') ? 'none' : 'block';
     renderRecap();
   } else {
     m.style.display='block'; pt.style.display='none'; s.style.display='none'; rc.style.display='none'; l.className='login-screen';
@@ -2755,6 +2757,8 @@ function setRecapView(view) {
   document.getElementById('recapWeekNav').style.display = (view === 'week') ? 'flex' : 'none';
   document.getElementById('recapMonthHeader').style.display = (view === 'month') ? 'flex' : 'none';
   document.getElementById('recapEcollabSection').style.display = (view === 'month') ? 'block' : 'none';
+  document.getElementById('recapTotalSection').style.display = (view === 'month') ? 'none' : 'block';
+  document.getElementById('recapOrnament').style.display = (view === 'month') ? 'none' : 'block';
   document.getElementById('recapTitle').textContent = (view === 'week') ? 'Recap de la semaine' : 'Recap du mois';
   renderRecapContent();
 }
@@ -3117,7 +3121,16 @@ function _renderEcollabRecap(monthKey) {
 
   var items = [];
 
-  // Heures supplementaires (toujours afficher)
+  // Total mois (depuis le recap-total)
+  var totalVal = document.getElementById('recapWeekTotal');
+  var totalDetail = document.getElementById('recapWeekDetail');
+  items.push({
+    label: 'Total mois',
+    value: totalVal ? totalVal.textContent : '--',
+    sub: totalDetail ? totalDetail.textContent : ''
+  });
+
+  // Heures supplementaires
   items.push({
     label: 'H. Supp.',
     value: (parseFloat(recap.totalHeures) || 0) + 'h',
@@ -3149,8 +3162,9 @@ function _renderEcollabRecap(monthKey) {
   });
 
   var html = '';
-  items.forEach(function(item) {
-    html += '<div class="recap-ecollab-item">';
+  items.forEach(function(item, idx) {
+    var span = (idx === 0) ? ' style="grid-column:1/-1"' : '';
+    html += '<div class="recap-ecollab-item"' + span + '>';
     html += '<div class="recap-ecollab-item-label">' + item.label + '</div>';
     html += '<div class="recap-ecollab-item-value">' + item.value + '</div>';
     if (item.sub) html += '<div class="recap-ecollab-item-sub">' + item.sub + '</div>';
@@ -3166,7 +3180,7 @@ function _getExerciseMonths(year, month) {
   for (var y = exYear, m = 10; ; ) {
     var mk = y + '-' + String(m).padStart(2, '0');
     months.push(mk);
-    if (y === year && m === month) break;
+    if (y === exYear + 1 && m === 9) break;
     m++;
     if (m > 12) { m = 1; y++; }
     if (months.length > 12) break;
@@ -3178,8 +3192,11 @@ function _fetchExerciseMonths(year, month) {
   var server = CFG.server || localStorage.getItem('eco_server') || '';
   if (!server || !CFG.email || !CFG.password || !CFG.url) return;
   var info = _getExerciseMonths(year, month);
+  var now = new Date();
+  var currentMonthKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   var missing = [];
   info.months.forEach(function(mk) {
+    if (mk > currentMonthKey) return;
     var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + mk;
     if (!localStorage.getItem(cacheKey)) missing.push(mk);
   });
@@ -3218,18 +3235,24 @@ function _renderCumulHS(year, month) {
   var info = _getExerciseMonths(year, month);
   var exYear = info.exYear;
   var months = info.months;
+  var now = new Date();
+  var currentMonthKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   var cumul = 0;
   var details = [];
   var hasMissing = false;
   months.forEach(function(mk) {
+    var parts = mk.split('-');
+    var label = _moisFr[parseInt(parts[1])-1].slice(0,3) + '.';
+    if (mk > currentMonthKey) {
+      details.push('<span style="opacity:0.3">' + label + '</span>');
+      return;
+    }
     var recapKey = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
     var recap = null;
     try { recap = JSON.parse(localStorage.getItem(recapKey)); } catch(e) {}
-    var hs = recap ? (parseFloat(recap.totalHeures) || 0) : 0;
-    cumul += hs;
-    var parts = mk.split('-');
-    var label = _moisFr[parseInt(parts[1])-1].slice(0,3) + '.';
     if (recap) {
+      var hs = parseFloat(recap.totalHeures) || 0;
+      cumul += hs;
       details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : hs < 0 ? 'color:var(--red)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
     } else {
       details.push('<span style="opacity:0.4">' + label + ' --</span>');
