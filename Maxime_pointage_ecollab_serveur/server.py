@@ -887,6 +887,7 @@ def cloture_selenium(email, password, url, plages, date_str="", variables=None):
             date_label = f"{parts[2]}/{parts[1]}/{parts[0]}"
         else:
             date_label = "aujourd'hui"
+        driver.quit()
         return True, f"Cl\u00f4ture r\u00e9ussie ({date_label}) : {resume}{var_result_msg}"
 
     except Exception as e:
