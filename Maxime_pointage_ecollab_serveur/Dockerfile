@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py .
 
 EXPOSE 5000
-CMD gunicorn server:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+CMD gunicorn server:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1
