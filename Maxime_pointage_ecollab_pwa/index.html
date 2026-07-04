@@ -176,6 +176,111 @@
   }
   .date-select:focus { border-color: var(--gold); }
 
+  /* --- CALENDAR PICKER --- */
+  .calendar-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(20,16,8,0.45);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: calFadeIn .15s ease;
+  }
+  @keyframes calFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .calendar-popup {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 20px;
+    width: 320px;
+    max-width: 92vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  }
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .calendar-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--dark);
+    text-transform: capitalize;
+    flex: 1;
+    text-align: center;
+  }
+  .calendar-nav {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .calendar-nav:active { background: var(--cream); }
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+  }
+  .calendar-day-name {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--light);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 6px 0 8px;
+  }
+  .calendar-day {
+    padding: 0;
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 14px;
+    font-family: var(--sans);
+    color: var(--dark);
+    transition: background .12s;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+  }
+  .calendar-day:active { background: var(--cream2); }
+  .calendar-day.cal-today { font-weight: 500; box-shadow: inset 0 0 0 1.5px var(--gold); }
+  .calendar-day.cal-selected { background: var(--gold); color: #fff; font-weight: 500; }
+  .calendar-day.cal-selected.cal-today { box-shadow: none; }
+  .calendar-day.cal-empty { pointer-events: none; visibility: hidden; }
+  .calendar-day.cal-dimanche { color: var(--border); }
+
+  /* --- NATIVE TIME INPUT --- */
+  .time-input-native {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--cream);
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--dark);
+    outline: none;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    text-align: center;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .time-input-native:focus { border-color: var(--gold); background: var(--white); }
+  .time-input-native:disabled { opacity: 0.5; pointer-events: none; }
+
   /* --- SECTION TITRE --- */
   .section-head {
     padding: 0 24px 12px;
@@ -1519,7 +1624,7 @@
 <!-- DATE -->
 <div class="date-section">
   <div class="date-label">Date</div>
-  <select class="date-select" id="dateSelect" onchange="setDate(this.value)"></select>
+  <div class="date-select" id="dateSelect" onclick="openCalendar()" role="button" tabindex="0">--</div>
 </div>
 
 <!-- PLAGES -->
@@ -2248,6 +2353,78 @@ function genDateOptions() {
   return opts;
 }
 
+// ======================================
+// CALENDAR DATE PICKER
+// ======================================
+var _calYear, _calMonth;
+
+function _updateDatePickerDisplay() {
+  var dateEl = document.getElementById('dateSelect');
+  if (!dateEl) return;
+  var cur = S.date || todayISO();
+  var d = new Date(cur + 'T12:00:00');
+  var joursFr = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  dateEl.textContent = joursFr[d.getDay()] + ' ' + pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear();
+}
+
+function openCalendar() {
+  if (document.getElementById('calendarOverlay')) return;
+  var cur = S.date || todayISO();
+  var d = new Date(cur + 'T12:00:00');
+  _calYear = d.getFullYear();
+  _calMonth = d.getMonth();
+  _renderCalendar();
+}
+
+function closeCalendar() {
+  var ov = document.getElementById('calendarOverlay');
+  if (ov) ov.remove();
+}
+
+function _calPrev() { _calMonth--; if (_calMonth < 0) { _calMonth = 11; _calYear--; } _renderCalendar(); }
+function _calNext() { _calMonth++; if (_calMonth > 11) { _calMonth = 0; _calYear++; } _renderCalendar(); }
+
+function _renderCalendar() {
+  closeCalendar();
+  var cur = S.date || todayISO();
+  var today = todayISO();
+  var daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
+  var firstDow = new Date(_calYear, _calMonth, 1).getDay();
+  var startOffset = (firstDow + 6) % 7;
+  var dayNames = ['L','M','M','J','V','S','D'];
+
+  var html = '<div class="calendar-overlay" id="calendarOverlay" onclick="if(event.target===this)closeCalendar()">';
+  html += '<div class="calendar-popup">';
+  html += '<div class="calendar-header">';
+  html += '<button class="calendar-nav" onclick="event.stopPropagation();_calPrev()">&#x2039;</button>';
+  html += '<span class="calendar-title">' + _moisFr[_calMonth] + ' ' + _calYear + '</span>';
+  html += '<button class="calendar-nav" onclick="event.stopPropagation();_calNext()">&#x203A;</button>';
+  html += '</div>';
+  html += '<div class="calendar-grid">';
+  for (var dn = 0; dn < 7; dn++) {
+    html += '<div class="calendar-day-name">' + dayNames[dn] + '</div>';
+  }
+  for (var e = 0; e < startOffset; e++) {
+    html += '<div class="calendar-day cal-empty"></div>';
+  }
+  for (var dd = 1; dd <= daysInMonth; dd++) {
+    var iso = _calYear + '-' + pad(_calMonth + 1) + '-' + pad(dd);
+    var cls = 'calendar-day';
+    if (iso === today) cls += ' cal-today';
+    if (iso === cur) cls += ' cal-selected';
+    var dow = new Date(_calYear, _calMonth, dd).getDay();
+    if (dow === 0) cls += ' cal-dimanche';
+    html += '<button class="' + cls + '" onclick="event.stopPropagation();selectCalendarDate(\'' + iso + '\')">' + dd + '</button>';
+  }
+  html += '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function selectCalendarDate(iso) {
+  closeCalendar();
+  setDate(iso);
+}
+
 function setDate(v) {
   // Save current day first
   save();
@@ -2308,9 +2485,8 @@ function genTacheOptions(selected) {
 }
 
 function renderPlages() {
-  // Date selector
-  var dateEl = document.getElementById('dateSelect');
-  if (dateEl) dateEl.innerHTML = genDateOptions();
+  // Date picker display
+  _updateDatePickerDisplay();
 
   var dejaValide = _isJourValideEcollab();
   var disabledAttr = (dejaValide || S.cloture) ? ' disabled' : '';
@@ -2329,11 +2505,11 @@ function renderPlages() {
       '</div>'+
       '<div class="time-row">'+
         '<span class="time-row-label">Debut</span>'+
-        '<select class="time-select" onchange="setField('+i+',\'debut\',this.value)"'+disabledAttr+'>'+genTimeOptions(p.debut)+'</select>'+
+        '<input type="time" class="time-input-native" value="'+(p.debut||'')+'" step="900" onchange="setField('+i+',\'debut\',this.value)"'+disabledAttr+'>'+
       '</div>'+
       '<div class="time-row">'+
         '<span class="time-row-label">Fin</span>'+
-        '<select class="time-select" onchange="setField('+i+',\'fin\',this.value)"'+disabledAttr+'>'+genTimeOptions(p.fin)+'</select>'+
+        '<input type="time" class="time-input-native" value="'+(p.fin||'')+'" step="900" onchange="setField('+i+',\'fin\',this.value)"'+disabledAttr+'>'+
       '</div>'+
       tacheRow+
     '</div>';
