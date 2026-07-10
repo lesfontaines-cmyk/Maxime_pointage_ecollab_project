@@ -10,4 +10,43 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.PROJECT_PATH }} && git pull origin main && CONTAINER=\$(docker ps -qf ancestor=pointage) && docker cp Maxime_pointage_ecollab_serveur/server.py \$CONTAINER:/app/server.py && docker cp Maxime_pointage_ecollab_serveur/requirements.txt \$CONTAINER:/tmp/requirements.txt && (docker exec \$CONTAINER pip install --break-system-packages -r /tmp/requirements.txt 2>&1 || echo WARN_PIP) && docker restart \$CONTAINER"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash -s << 'REMOTE'
+          set -e
+          cd ${{ secrets.PROJECT_PATH }}
+          git pull origin main
+
+          # Trouver le container actuel et son port
+          CONTAINER=$(docker ps -qf ancestor=pointage 2>/dev/null || true)
+          PORT_MAP=""
+          ENV_PORT=""
+          if [ -n "$CONTAINER" ]; then
+            PORT_MAP=$(docker port "$CONTAINER" 2>/dev/null | head -1 | sed 's/.*://' || echo "5000")
+            ENV_PORT=$(docker exec "$CONTAINER" printenv PORT 2>/dev/null || echo "5000")
+          fi
+          : "${PORT_MAP:=5000}"
+          : "${ENV_PORT:=5000}"
+
+          # Copier le nouveau code dans le container existant
+          if [ -n "$CONTAINER" ]; then
+            docker cp Maxime_pointage_ecollab_serveur/server.py "$CONTAINER":/app/server.py
+            docker cp Maxime_pointage_ecollab_serveur/requirements.txt "$CONTAINER":/tmp/requirements.txt
+            docker exec "$CONTAINER" pip install --break-system-packages -r /tmp/requirements.txt 2>&1 || echo WARN_PIP
+            docker restart "$CONTAINER"
+          fi
+
+          # Reconstruire l'image si le Dockerfile a changé récemment
+          if git diff HEAD~3 --name-only | grep -q 'Dockerfile'; then
+            echo "Dockerfile modifié — reconstruction de l'image..."
+            docker build -t pointage Maxime_pointage_ecollab_serveur/
+            if [ -n "$CONTAINER" ]; then
+              docker stop "$CONTAINER" 2>/dev/null || true
+              docker rm "$CONTAINER" 2>/dev/null || true
+            fi
+            docker run -d --restart unless-stopped \
+              -e PORT="$ENV_PORT" \
+              -p "$PORT_MAP":"$ENV_PORT" \
+              --name pointage-cm \
+              pointage
+            echo "Nouveau container démarré sur le port $PORT_MAP"
+          fi
+          REMOTE
