@@ -385,15 +385,18 @@ def _extract_recap(model, mois, annee):
     recap['totalHeures'] = min_to_hhmm(total_min) if total_min else '0'
 
     detail = []
+    total_supp_min = 0
     for wk in sorted(weeks.keys()):
         wk_min = weeks[wk]
         supp = max(0, wk_min - 35 * 60)
+        total_supp_min += supp
         detail.append({
             'plage': f'S{wk}',
             'heuresSupp': min_to_hhmm(supp) if supp else '0',
             'heuresSuppEquivalentes': min_to_hhmm(supp) if supp else '0',
         })
     recap['detailParSemaine'] = detail
+    recap['totalHeuresSupp'] = round(total_supp_min / 60, 2)
 
     return recap
 

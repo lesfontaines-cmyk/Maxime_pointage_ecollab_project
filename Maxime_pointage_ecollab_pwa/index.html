@@ -2939,6 +2939,18 @@ function loadDefaultPlages() {
 var _moisFr = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
 var _moisAbr = ['Jan','Fev','Mars','Avr','Mai','Juin','Juil','Aout','Sep','Oct','Nov','Dec'];
 
+function _getRecapSupp(recap) {
+  if (recap.totalHeuresSupp !== undefined) return recap.totalHeuresSupp;
+  if (!recap.detailParSemaine) return 0;
+  var total = 0;
+  recap.detailParSemaine.forEach(function(w) {
+    var v = w.heuresSupp || '0';
+    var parts = v.split(':');
+    total += (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+  });
+  return Math.round((total / 60) * 100) / 100;
+}
+
 function setRecapView(view) {
   _recapView = view;
   _recapWeekOffset = 0;
@@ -3337,10 +3349,11 @@ function _renderEcollabRecap(monthKey) {
   });
 
   // Heures supplementaires
+  var hSupp = _getRecapSupp(recap);
   items.push({
     label: 'H. Supp.',
-    value: (parseFloat(recap.totalHeures) || 0) + 'h',
-    sub: recap.totalHeuresEquivalent && recap.totalHeuresEquivalent !== recap.totalHeures ? 'equiv. ' + recap.totalHeuresEquivalent + 'h' : ''
+    value: hSupp + 'h',
+    sub: hSupp > 0 ? 'base 35h/sem.' : ''
   });
 
   // Heures feries
@@ -3472,7 +3485,7 @@ function _renderCumulHS(year, month) {
     } else if (recap.empty) {
       details.push('<span style="opacity:0.5">' + label + ' 0h</span>');
     } else {
-      var hs = parseFloat(recap.totalHeures) || 0;
+      var hs = _getRecapSupp(recap);
       cumul += hs;
       details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : hs < 0 ? 'color:var(--red)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
     }
