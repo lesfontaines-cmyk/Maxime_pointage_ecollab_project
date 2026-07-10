@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Serveur de clôture automatique — Charles Murgat
+API directe eCollaboratrice (sans Selenium).
 Lance: python server.py
 """
 
@@ -11,9 +12,11 @@ import time
 import datetime
 import threading
 import os
+import re as _re
 import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import requests as _requests
 
 try:
     from pywebpush import webpush, WebPushException
@@ -23,7 +26,7 @@ except ImportError:
     print("[PUSH] pywebpush non installé — notifications push désactivées")
 
 app = Flask(__name__)
-CORS(app)  # Autorise les requêtes depuis la PWA mobile
+CORS(app)
 
 # ─── WEB PUSH (VAPID) ───────────────────────────────────────────────────────
 _SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -103,44 +106,171 @@ def to_minutes(hhmm):
 def min_to_hhmm(m):
     return f"{m // 60:02d}:{m % 60:02d}"
 
-# ─── SETUP SELENIUM (shared) ─────────────────────────────────────────────────
-def _setup_driver(email, password, url, date_str=""):
-    """
-    Lance Chrome headless, pose cookie RGPD, navigue vers SaisieRapide, login si nécessaire.
-    Retourne (driver, saisie_url) ou lève une Exception.
-    """
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
-    import shutil, glob, re as _re
+def _base_url_of(url):
+    return '/'.join(url.split('/')[:3])
 
-    opts = Options()
-    opts.add_argument("--headless=new")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1280,800")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+def _extract_id_contrat(url):
+    m = _re.search(r'idContrat=(\d+)', url)
+    return int(m.group(1)) if m else None
 
-    chromium_path     = os.environ.get("CHROME_BIN") or \
-                        shutil.which("chromium") or \
-                        shutil.which("chromium-browser") or \
-                        shutil.which("google-chrome")
-    chromedriver_path = os.environ.get("CHROMEDRIVER_PATH") or \
-                        shutil.which("chromedriver")
+# ─── SESSION HTTP DIRECTE ECOLLABORATRICE ────────────────────────────────────
+_http_session = None
+_http_session_expiry = 0
+_http_session_key = None
+_login_lock = threading.Lock()
 
-    if chromium_path:
-        opts.binary_location = chromium_path
-    if chromedriver_path:
-        service = Service(chromedriver_path)
-        driver  = webdriver.Chrome(service=service, options=opts)
-    else:
-        from webdriver_manager.chrome import ChromeDriverManager
-        service = Service(ChromeDriverManager().install())
-        driver  = webdriver.Chrome(service=service, options=opts)
+def _http_login(session, email, password, base_url):
+    headers = {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+    }
+    data = {'mail': email, 'motdepasse': password, 'rememberMe': 'true'}
+    r = session.post(f"{base_url}/Auth/Login", data=data, headers=headers, timeout=30)
+    try:
+        j = r.json()
+    except Exception:
+        j = None
 
-    # Date cible
+    if isinstance(j, dict) and j.get('utilisateurs'):
+        users = j.get('utilisateurs') or []
+        uid = None
+        for u in users:
+            if isinstance(u, dict) and not u.get('Desactive'):
+                uid = u.get('Id'); break
+        if uid is None and users and isinstance(users[0], dict):
+            uid = users[0].get('Id')
+        if uid is not None:
+            d2 = dict(data); d2['idUtilisateur'] = uid
+            r = session.post(f"{base_url}/Auth/Login", data=d2, headers=headers, timeout=30)
+            try: j = r.json()
+            except Exception: j = None
+
+    if any(c.name == '.ASPXAUTH' for c in session.cookies):
+        return True, None
+    msg = j.get('message') if isinstance(j, dict) else None
+    return False, msg or f"Echec de connexion (HTTP {r.status_code})"
+
+
+def _ensure_http_session(email, password, url):
+    global _http_session, _http_session_expiry, _http_session_key
+    base = _base_url_of(url)
+    key = (email, base)
+    now = time.time()
+    if _http_session is not None and _http_session_key == key and now < _http_session_expiry:
+        return _http_session, base
+
+    with _login_lock:
+        now = time.time()
+        if _http_session is not None and _http_session_key == key and now < _http_session_expiry:
+            return _http_session, base
+
+        s = _requests.Session()
+        s.headers.update({
+            'User-Agent': 'Mozilla/5.0',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json, text/plain, */*',
+        })
+        host = base.replace('https://', '').replace('http://', '')
+        try: s.cookies.set('alert-rgpd', 'true', domain=host, path='/')
+        except Exception: pass
+
+        ok, msg = False, None
+        try:
+            ok, msg = _http_login(s, email, password, base)
+        except Exception as e:
+            ok, msg = False, str(e)
+
+        if not ok:
+            raise RuntimeError(msg or "Echec de connexion")
+
+        now2 = time.time()
+        ttl = 25 * 60
+        for c in s.cookies:
+            if c.name == '.ASPXAUTH' and c.expires:
+                ttl = max(60, min(c.expires - now2, 6 * 3600))
+                break
+        _http_session = s
+        _http_session_expiry = now2 + ttl
+        _http_session_key = key
+        print(f"  [session] Login HTTP OK, TTL={int(ttl)}s")
+        return s, base
+
+
+def _reset_http_session():
+    global _http_session, _http_session_expiry, _http_session_key
+    _http_session = None
+    _http_session_expiry = 0
+    _http_session_key = None
+
+
+def _get_vdp(session, base, id_contrat, mois, annee):
+    r = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPSalarie",
+                    params={'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)},
+                    timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+# ─── LECTURE ECOLLAB (API directe) ──────────────────────────────────────────
+def _model_to_days(model, mois, annee):
+    days = {}
+    mois = int(mois); annee = int(annee)
+    for j in (model.get('Jours') or []):
+        try:
+            if int(j.get('Mois', 0)) != mois or int(j.get('Annee', 0)) != annee:
+                continue
+            jour = int(j.get('Jour'))
+        except Exception:
+            continue
+        date_key = f"{annee}-{mois:02d}-{jour:02d}"
+        plages = []
+        total_min = 0
+        variables = None
+        for h in (j.get('Horaires') or []):
+            hd = h.get('HeureDebut'); hf = h.get('HeureFin')
+            if hd is None or hf is None:
+                continue
+            try:
+                hd = int(hd); hf = int(hf)
+            except Exception:
+                continue
+            if hf > hd:
+                total_min += (hf - hd)
+            p = {'debut': min_to_hhmm(hd), 'fin': min_to_hhmm(hf)}
+            if h.get('IdTache'):
+                p['tache'] = h['IdTache']
+            obs = h.get('ObservationCustom') or {}
+            if obs.get('Value'):
+                p['absence'] = True
+                p['tache'] = obs.get('Text')
+            plages.append(p)
+
+        var_sources = [j.get('VariablesJour'), j.get('Variables'),
+                       j.get('ValeursVariables'), j.get('ListeVariables')]
+        for src in var_sources:
+            if src and isinstance(src, list) and len(src) > 0:
+                variables = {}
+                for v in src:
+                    lib = (v.get('Libelle') or v.get('libelle') or v.get('Label') or v.get('Nom') or '').upper()
+                    val = v.get('Valeur') or v.get('valeur') or v.get('Value') or v.get('Quantite') or 0
+                    if 'ASTREINTE' in lib:
+                        variables['astreinte'] = val
+                    if 'ELOIGNEMENT' in lib:
+                        variables['indemniteEloignement'] = val
+                break
+
+        days[date_key] = {
+            'plages': plages,
+            'travaille': bool(j.get('EstTravaille')),
+            'valideSalarie': bool(j.get('ValideeParSalarie')),
+            'valideEntreprise': bool(j.get('ValideeParEntreprise')),
+        }
+        if variables:
+            days[date_key]['variables'] = variables
+    return days
+
+
+def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
     if date_str:
         try:
             dt = datetime.date.fromisoformat(date_str)
@@ -149,898 +279,271 @@ def _setup_driver(email, password, url, date_str=""):
     else:
         dt = datetime.date.today()
     mois, annee = dt.month, dt.year
-
-    # Injecter mois/année dans l'URL
-    url = _re.sub(r'mois=\d+', f'mois={mois:02d}', url)
-    url = _re.sub(r'annee=\d+', f'annee={annee}', url)
-
-    # Cookie RGPD + navigation
-    base_url = '/'.join(url.split('/')[:3])
-    driver.get(base_url)
-    time.sleep(1)
-    driver.add_cookie({'name': 'alert-rgpd', 'value': 'true',
-                       'domain': base_url.replace('https://', '').replace('http://', '')})
-
-    driver.get(url)
-    time.sleep(3)
-
-    # Login si nécessaire
-    current = driver.current_url.lower()
-    if 'login' in current or 'account' in current or 'connect' in current or 'auth' in current:
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.by import By
-        email_el = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR,
-                "input[type='email'], input[placeholder='Email'], input[name='Email']"))
-        )
-        email_el.clear()
-        email_el.send_keys(email)
-        pwd_el = driver.find_element('css selector', "input[type='password']")
-        pwd_el.clear()
-        pwd_el.send_keys(password)
-        driver.find_element('css selector', "button[type='submit']").click()
-        time.sleep(4)
-        driver.add_cookie({'name': 'alert-rgpd', 'value': 'true',
-                           'domain': base_url.replace('https://', '').replace('http://', '')})
-        driver.get(url)
-        time.sleep(3)
-
-    # Naviguer vers Saisie rapide
-    saisie_url = f"{base_url}/Paie/VariablePaie/SaisieRapide?&mois={mois:02d}&annee={annee}"
-    driver.get(saisie_url)
-    time.sleep(5)  # attendre chargement Vue
-
-    return driver, saisie_url
-
-
-# ─── LECTURE ECOLLAB ─────────────────────────────────────────────────────────
-def fetch_ecollab_days(email, password, url, date_str=""):
-    """
-    Lit les horaires depuis eCollab pour le mois contenant date_str.
-    Retourne (True, {date_iso: {plages, travaille}}) ou (False, erreur).
-    """
-    driver = None
-    try:
-        driver, _ = _setup_driver(email, password, url, date_str)
-
-        # Lire tous les jours via JS
-        result = driver.execute_script("""
-            let vueEl = document.querySelector('#vueSaisieRapide');
-            if (!vueEl || !vueEl.__vue__) {
-                vueEl = [...document.querySelectorAll('div')].find(e => {
-                    try { return e.__vue__?.$data?.currentSalarie; } catch(x) { return false; }
-                });
-            }
-            if (!vueEl) return {error: 'ERR_NO_VUE'};
-            const vm = vueEl.__vue__;
-            const jours = vm.$data.currentSalarie && vm.$data.currentSalarie.Jours;
-            if (!jours || !jours.length) return {error: 'ERR_NO_JOURS'};
-
-            // Debug: lister toutes les clés du premier jour
-            const debugKeys = Object.keys(jours[0]).filter(k => {
-                const v = jours[0][k];
-                return typeof v !== 'function';
-            }).map(k => k + '(' + typeof jours[0][k] + ')');
-
-            const days = {};
-            for (const j of jours) {
-                const mois = String(j.Mois).padStart(2, '0');
-                const jour = String(j.Jour).padStart(2, '0');
-                // Déterminer l'année depuis l'URL ou la page
-                const params = new URLSearchParams(window.location.search);
-                const annee = params.get('annee') || new Date().getFullYear();
-                const dateKey = annee + '-' + mois + '-' + jour;
-
-                const plages = [];
-                if (j.Horaires && j.Horaires.length) {
-                    for (const h of j.Horaires) {
-                        const deb = h.HeureDebut;
-                        const fin = h.HeureFin;
-                        if (typeof deb === 'number' && typeof fin === 'number' && (deb > 0 || fin > 0)) {
-                            const debH = String(Math.floor(deb/60)).padStart(2,'0');
-                            const debM = String(deb%60).padStart(2,'0');
-                            const finH = String(Math.floor(fin/60)).padStart(2,'0');
-                            const finM = String(fin%60).padStart(2,'0');
-                            const p = {debut: debH+':'+debM, fin: finH+':'+finM};
-                            if (h.IdTache) p.tache = h.IdTache;
-                            plages.push(p);
-                        }
-                    }
-                }
-                // Extraire les variables du jour si disponibles
-                let variables = null;
-                try {
-                    // Chercher dans VariablesJour, Variables, ou ValeurVariable
-                    const varSources = [j.VariablesJour, j.Variables, j.ValeursVariables, j.ListeVariables];
-                    for (const src of varSources) {
-                        if (src && Array.isArray(src) && src.length > 0) {
-                            variables = {};
-                            for (const v of src) {
-                                const lib = (v.Libelle || v.libelle || v.Label || v.Nom || '').toUpperCase();
-                                const val = v.Valeur || v.valeur || v.Value || v.Quantite || 0;
-                                if (lib.indexOf('ASTREINTE') !== -1) variables.astreinte = val;
-                                if (lib.indexOf('ELOIGNEMENT') !== -1) variables.indemniteEloignement = val;
-                            }
-                            break;
-                        }
-                    }
-                } catch(e) {}
-
-                days[dateKey] = {
-                    plages: plages,
-                    travaille: !!j.EstTravaille,
-                    valideSalarie: !!j.ValideeParSalarie,
-                    valideEntreprise: !!j.ValideeParEntreprise
-                };
-                if (variables) days[dateKey].variables = variables;
-            }
-            return {success: true, days: days, _debug_keys: debugKeys};
-        """)
-
-        if not result or result.get('error'):
-            driver.quit()
-            return False, f"Erreur lecture Vue : {result.get('error', 'inconnu')}", [], None, []
-
-        # ── Extraction des données Récapitulatif (optionnel) ──
-        recap_data = None
-        try:
-            # Cliquer sur l'onglet Récapitulatif
-            tab_clicked = driver.execute_script("""
-                var tabs = document.querySelectorAll('a, button, .nav-link, [role="tab"], li');
-                for (var i = 0; i < tabs.length; i++) {
-                    var t = tabs[i].textContent.trim().toLowerCase();
-                    if (t.indexOf('capitulatif') !== -1 || t.indexOf('recap') !== -1) {
-                        tabs[i].click();
-                        return true;
-                    }
-                }
-                return false;
-            """)
-            print(f"  [recap] Onglet Récapitulatif cliqué: {tab_clicked}")
-            time.sleep(3)
-
-            recap_result = driver.execute_script("""
-                var r = {};
-                var debugInfo = [];
-
-                // Chercher le composant Vue recap — essayer plusieurs sélecteurs
-                var selectors = ['#variable-paie', '#vueSaisieRapide', '[id*="recap"]', '[id*="variable"]', '[id*="paie"]'];
-                var vm = null;
-                var foundSelector = '';
-                for (var i = 0; i < selectors.length; i++) {
-                    var el = document.querySelector(selectors[i]);
-                    if (el && el.__vue__) {
-                        vm = el.__vue__;
-                        foundSelector = selectors[i];
-                        break;
-                    }
-                }
-                if (!vm) {
-                    // Fallback: chercher tout élément avec __vue__
-                    var allEls = document.querySelectorAll('*');
-                    for (var i = 0; i < allEls.length; i++) {
-                        if (allEls[i].__vue__ && allEls[i].id) {
-                            debugInfo.push('vue_el: #' + allEls[i].id);
-                        }
-                    }
-                    return {error: 'NO_VUE_FOUND', debugInfo: debugInfo};
-                }
-                debugInfo.push('found_on: ' + foundSelector);
-
-                // Remonter la chaîne $parent pour trouver le bon composant
-                var root = vm;
-                var chain = [foundSelector];
-                while (root.$parent && root.$parent !== root.$root) {
-                    root = root.$parent;
-                    chain.push(root.$options && root.$options.name ? root.$options.name : '?');
-                }
-                debugInfo.push('chain: ' + chain.join(' > '));
-
-                // Explorer toutes les propriétés du vm trouvé (et $root)
-                var targets = [{label: 'vm', obj: vm}, {label: '$root', obj: vm.$root}];
-                targets.forEach(function(target) {
-                    var o = target.obj;
-                    if (!o) return;
-                    var keys = Object.keys(o.$data || {});
-                    var proto = Object.getPrototypeOf(o);
-                    if (proto) keys = keys.concat(Object.getOwnPropertyNames(proto));
-                    keys = keys.concat(Object.keys(o));
-                    var seen = new Set();
-                    keys.forEach(function(k) {
-                        if (k.startsWith('_') || k.startsWith('$') || seen.has(k)) return;
-                        seen.add(k);
-                        try {
-                            var v = o[k];
-                            var t = typeof v;
-                            if (t === 'function') return;
-                            var prefix = target.label + '.' + k;
-                            if (v && t === 'object' && !Array.isArray(v)) {
-                                debugInfo.push(prefix + '={' + Object.keys(v).slice(0,10).join(',') + '}');
-                            } else if (Array.isArray(v)) {
-                                debugInfo.push(prefix + '=[' + v.length + ']');
-                            } else if (v !== undefined && v !== null) {
-                                var sv = JSON.stringify(v);
-                                if (sv && sv.length < 100) debugInfo.push(prefix + '=' + sv);
-                            }
-                        } catch(e) {}
-                    });
-                });
-                r._debug_recap_keys = debugInfo;
-
-                // ── Méthode 1: Vue properties (noms possibles) ──
-                var totalH = vm.TotalHeures || vm.totalHeures || vm.NbHeuresSup || vm.nbHeuresSup || vm.HeuresSupplementaires || '';
-                var totalHE = vm.TotalHeuresEquivalent || vm.totalHeuresEquivalent || vm.NbHeuresSupEquivalentes || '';
-                r.totalHeures = totalH || '0';
-                r.totalHeuresEquivalent = totalHE || totalH || '0';
-
-                // Fériés
-                var hf = vm.TotalHeuresJoursFeries || vm.HeuresFeries || vm.JoursFeries || {};
-                r.heuresFeries = {
-                    total: hf.totalHeuresFeries || hf.Total || hf.total || hf.NbHeures || 0,
-                    majorees: hf.totalHeuresFeriesMajorees || hf.Majorees || hf.majorees || 0
-                };
-
-                // Nuit
-                var hn = vm.TotalHeuresHeuresNuit || vm.HeuresNuit || vm.HeureNuit || {};
-                r.heuresNuit = {
-                    total: hn.totalHeuresNuit || hn.Total || hn.total || hn.NbHeures || 0,
-                    majorees: hn.totalHeuresNuitMajorees || hn.Majorees || hn.majorees || 0
-                };
-
-                // Dimanche
-                var hd = vm.TotalHeuresHeuresDimanche || vm.HeuresDimanche || vm.HeureDimanche || {};
-                r.heuresDimanche = {
-                    total: hd.totalHeuresDimanche || hd.Total || hd.total || hd.NbHeures || 0,
-                    majorees: hd.totalHeuresDimancheMajorees || hd.Majorees || hd.majorees || 0
-                };
-
-                // Détail par semaine
-                var detail = vm.RecapitulatifDetailHeuresSuppEquivalentes || vm.DetailHeuresSupp || vm.detailSemaines || [];
-                r.detailParSemaine = detail.map ? detail.map(function(d) {
-                    return {plage: d.plage || d.Plage || '', heuresSupp: d.heuresSupp || d.HeuresSupp || 0, heuresSuppEquivalentes: d.heuresSuppEquivalentes || d.HeuresSuppEquivalentes || 0};
-                }) : [];
-
-                // ── Méthode 2: Scraper le DOM visible du récap ──
-                var domData = {};
-                var panels = document.querySelectorAll('.panel, .card, .recap, [class*="recap"], [class*="total"], table, .table');
-                panels.forEach(function(panel) {
-                    var text = panel.innerText || '';
-                    // Chercher patterns "Label : valeur" ou "Label valeur h"
-                    var lines = text.split('\\n');
-                    lines.forEach(function(line) {
-                        line = line.trim().toLowerCase();
-                        if (line.indexOf('supp') !== -1 && line.match(/[\\d,.]+/)) {
-                            domData.heuresSupp = line;
-                        }
-                        if ((line.indexOf('rié') !== -1 || line.indexOf('ferie') !== -1) && line.match(/[\\d,.]+/)) {
-                            domData.heuresFeries = line;
-                        }
-                        if (line.indexOf('nuit') !== -1 && line.match(/[\\d,.]+/)) {
-                            domData.heuresNuit = line;
-                        }
-                        if (line.indexOf('dimanche') !== -1 && line.match(/[\\d,.]+/)) {
-                            domData.heuresDimanche = line;
-                        }
-                        if ((line.indexOf('récup') !== -1 || line.indexOf('recup') !== -1) && line.match(/[\\d,.]+/)) {
-                            domData.recup = line;
-                        }
-                    });
-                });
-                r._dom_data = domData;
-
-                // ── Méthode 3: Scraper TOUTES les tables du récap ──
-                var tables = document.querySelectorAll('table');
-                var tableData = [];
-                tables.forEach(function(tbl, idx) {
-                    var rows = tbl.querySelectorAll('tr');
-                    var rowTexts = [];
-                    rows.forEach(function(row) {
-                        var cells = row.querySelectorAll('td, th');
-                        var cellTexts = [];
-                        cells.forEach(function(c) { cellTexts.push(c.innerText.trim()); });
-                        if (cellTexts.length > 0) rowTexts.push(cellTexts.join(' | '));
-                    });
-                    if (rowTexts.length > 0) tableData.push('TABLE' + idx + ': ' + rowTexts.join(' // '));
-                });
-                r._tables = tableData.slice(0, 5);
-
-                r.success = true;
-                return r;
-            """)
-            print(f"  [recap] Résultat brut: {recap_result}")
-            if recap_result and recap_result.get('error'):
-                print(f"  [recap] Erreur: {recap_result.get('error')}, info: {recap_result.get('debugInfo', [])}")
-            if recap_result and recap_result.get('success'):
-                # Log debug info
-                if recap_result.get('_debug_recap_keys'):
-                    for dk in recap_result['_debug_recap_keys'][:30]:
-                        print(f"    [recap-debug] {dk}")
-                if recap_result.get('_dom_data'):
-                    print(f"    [recap-dom] {recap_result['_dom_data']}")
-                if recap_result.get('_tables'):
-                    for t in recap_result['_tables']:
-                        print(f"    [recap-table] {t[:200]}")
-                recap_data = recap_result
-                # Nettoyer les clés de debug avant d'envoyer au client
-                for k in ['success', '_debug_recap_keys', '_dom_data', '_tables']:
-                    recap_data.pop(k, None)
-        except Exception as e_recap:
-            print(f"  [recap] Extraction récap échouée (non bloquant) : {e_recap}")
-
-        # ── Extraire les taches depuis le modele Vue (vm.taches) ──
-        try:
-            print("  [taches] Extraction depuis Vue model...", flush=True)
-            taches_result = driver.execute_script("""
-                // Chercher l'instance Vue sur la page (SaisieRapide ou IndexSalarie)
-                var vueEl = document.querySelector('#vueSaisieRapide') || document.querySelector('#variable-paie');
-                if (!vueEl) {
-                    var divs = document.querySelectorAll('div');
-                    for (var i = 0; i < divs.length; i++) {
-                        try { if (divs[i].__vue__ && (divs[i].__vue__.taches || divs[i].__vue__.TachesDisponibles || divs[i].__vue__.TachesDispos)) { vueEl = divs[i]; break; } } catch(e) {}
-                    }
-                }
-                if (!vueEl || !vueEl.__vue__) return {error: 'no vue element'};
-                var vm = vueEl.__vue__;
-                // vm.taches peut etre un Array ou un Object — normaliser
-                var src = vm.taches || vm.TachesDisponibles || vm.TachesDispos || vm.$root.taches || vm.$root.TachesDisponibles || vm.$root.TachesDispos;
-                if (!src) return {error: 'no taches property', keys: Object.keys(vm.$data).join(',')};
-                // Convertir en array si c'est un objet
-                var items = Array.isArray(src) ? src : Object.values(src);
-                if (!items || !items.length) return {error: 'empty taches', type: typeof src, isArray: Array.isArray(src)};
-                var taches = [];
-                for (var i = 0; i < items.length; i++) {
-                    var t = items[i];
-                    if (typeof t === 'object' && t !== null) {
-                        var id = t.Id || t.id || t.IdTache;
-                        var lib = t.Libelle || t.libelle || t.Label || t.label || t.Nom || t.Designation || '';
-                        if (id && lib) taches.push({id: id, label: lib});
-                    }
-                }
-                var seen = {};
-                return taches.filter(function(t) { if (seen[t.id]) return false; seen[t.id] = true; return true; });
-            """)
-            if isinstance(taches_result, dict) and 'error' in taches_result:
-                print(f"  [taches] Erreur JS: {taches_result}", flush=True)
-            elif isinstance(taches_result, list) and len(taches_result) > 0:
-                result['taches'] = taches_result
-                print(f"  [taches] OK : {len(taches_result)} taches", flush=True)
-            else:
-                print(f"  [taches] Resultat inattendu: {taches_result}", flush=True)
-        except Exception as e_taches:
-            print(f"  [taches] Extraction echouee : {e_taches}", flush=True)
-
-        driver.quit()
-
-        return True, result.get('days', {}), result.get('_debug_keys', []), recap_data, result.get('taches', [])
-
-    except Exception as e:
-        if driver:
-            try: driver.quit()
-            except: pass
-        return False, f"Erreur inattendue : {e}", [], None, []
-
-
-# ─── CLÔTURE SELENIUM ────────────────────────────────────────────────────────
-def cloture_selenium(email, password, url, plages, date_str="", variables=None):
-    """
-    Ouvre Chrome, se connecte à Ecollaboratrice, injecte les horaires et variables, sauvegarde.
-    Retourne (True, "message") ou (False, "erreur")
-    """
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
-    from webdriver_manager.chrome import ChromeDriverManager
-
-    opts = Options()
-    opts.add_argument("--headless=new")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1280,800")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-
-    # Trouver Chromium et Chromedriver via env ou système
-    import shutil, glob
-
-    chromium_path     = os.environ.get("CHROME_BIN") or \
-                        shutil.which("chromium") or \
-                        shutil.which("chromium-browser") or \
-                        shutil.which("google-chrome")
-
-    chromedriver_path = os.environ.get("CHROMEDRIVER_PATH") or \
-                        shutil.which("chromedriver")
+    id_contrat = _extract_id_contrat(url)
+    if not id_contrat:
+        return False, "idContrat introuvable dans l'URL", [], None, []
 
     try:
-        if chromium_path:
-            opts.binary_location = chromium_path
-        if chromedriver_path:
-            service = Service(chromedriver_path)
-            driver  = webdriver.Chrome(service=service, options=opts)
-        else:
-            from webdriver_manager.chrome import ChromeDriverManager
-            service = Service(ChromeDriverManager().install())
-            driver  = webdriver.Chrome(service=service, options=opts)
+        session, base = _ensure_http_session(email, password, url)
+        r = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPSalarie",
+                        params={'idContrat': id_contrat, 'mois': f'{mois:02d}', 'annee': annee},
+                        timeout=30)
+        if r.status_code in (401, 403) and _retry:
+            _reset_http_session()
+            return fetch_ecollab_days(email, password, url, date_str, _retry=False)
+        r.raise_for_status()
+        model = r.json()
+
+        if not isinstance(model, dict) or 'Jours' not in model:
+            return False, "Réponse GetVDPSalarie inattendue", [], None, []
+
+        days = _model_to_days(model, mois, annee)
+
+        recap = _extract_recap(model, mois, annee)
+
+        taches = _extract_taches(model)
+
+        return True, days, [], recap, taches
+
+    except RuntimeError as e:
+        return False, str(e), [], None, []
     except Exception as e:
-        return False, f"Impossible de lancer Chrome : {e}"
-
-    try:
-        # ── 1. Ouvrir la page ────────────────────────────────────────────────
-        # Injecter mois et année courants dans l'URL
-        import re as _re
-        today_d = datetime.date.today()
-        url = _re.sub(r'mois=\d+', f'mois={today_d.month:02d}', url)
-        url = _re.sub(r'annee=\d+', f'annee={today_d.year}', url)
-        # ── 1b. Ouvrir domaine pour poser le cookie RGPD ─────────────────────
-        base_url = '/'.join(url.split('/')[:3])  # ex: https://drive.ecollaboratrice.com
-        driver.get(base_url)
-        time.sleep(1)
-        driver.add_cookie({'name': 'alert-rgpd', 'value': 'true', 'domain': base_url.replace('https://', '').replace('http://', '')})
-
-        driver.get(url)
-        time.sleep(3)
-
-        # ── 2. Connexion si nécessaire ───────────────────────────────────────
-        current = driver.current_url.lower()
-        if 'login' in current or 'account' in current or 'connect' in current or 'auth' in current:
-            try:
-                from selenium.webdriver.support.ui import WebDriverWait
-                from selenium.webdriver.support import expected_conditions as EC
-                from selenium.webdriver.common.by import By
-                email_el = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='email'], input[placeholder='Email'], input[name='Email']"))
-                )
-                email_el.clear()
-                email_el.send_keys(email)
-                pwd_el = driver.find_element('css selector', "input[type='password']")
-                pwd_el.clear()
-                pwd_el.send_keys(password)
-                driver.find_element('css selector', "button[type='submit']" ).click()
-                time.sleep(4)
-                # Poser le cookie RGPD après login
-                driver.add_cookie({'name': 'alert-rgpd', 'value': 'true', 'domain': base_url.replace('https://', '').replace('http://', '')})
-                driver.get(url)
-                time.sleep(3)
-            except Exception as e:
-                driver.quit()
-                return False, f'Erreur de connexion : {e}'
+        return False, f"Erreur lecture directe : {e}", [], None, []
 
 
-
-        # ── 3. Naviguer vers Saisie rapide ───────────────────────────────────
-        if date_str:
-            try:
-                dt = datetime.date.fromisoformat(date_str)
-                mois = dt.month
-                annee = dt.year
-            except Exception:
-                dt = datetime.date.today()
-                mois, annee = dt.month, dt.year
-        else:
-            dt = datetime.date.today()
-            mois, annee = dt.month, dt.year
-
-        base_url = '/'.join(url.split('/')[:3])
-        saisie_url = f"{base_url}/Paie/VariablePaie/SaisieRapide?&mois={mois:02d}&annee={annee}"
-        driver.get(saisie_url)
-        time.sleep(3)
-
-        # ── 4. Attendre le chargement Vue ─────────────────────────────────────
-        time.sleep(2)
-
-        # ── 5. Injection horaires via model.Jours ────────────────────────────
-        plages_min = [{"debut": to_minutes(p["debut"]), "fin": to_minutes(p["fin"]), "tache": p.get("tache", 0)} for p in plages]
-        plages_json = json.dumps(plages_min)
-
-        # Extraire jour et mois de la date
-        date_parts = date_str.split('-')
-        target_mois = int(date_parts[1])
-        target_jour = int(date_parts[2])
-
-        result = driver.execute_script(f"""
-            const tM = {target_mois};
-            const tJ = {target_jour};
-            const pl = {plages_json};
-
-            // Trouver le composant Vue Saisie Rapide
-            let vueEl = document.querySelector('#vueSaisieRapide');
-            if (!vueEl || !vueEl.__vue__) {{
-                vueEl = [...document.querySelectorAll('div')].find(e => {{
-                    try {{ return e.__vue__?.$data?.currentSalarie; }} catch(x) {{ return false; }}
-                }});
-            }}
-            if (!vueEl) return 'ERR_NO_VUE';
-            const vm = vueEl.__vue__;
-
-            // Utiliser currentSalarie.Jours (source reactive des composants)
-            const jours = vm.$data.currentSalarie && vm.$data.currentSalarie.Jours;
-            if (!jours || !jours.length) return 'ERR_NO_JOURS';
-
-            // Trouver le jour par Jour/Mois
-            const jour = jours.find(j => j.Jour === tJ && j.Mois === tM);
-            if (!jour) return 'ERR_NO_JOUR:' + tJ + '/' + tM;
-
-            if (pl.length === 0) {{
-                // Journee vide : marquer non-travaille et vider les horaires
-                vm.$set(jour, 'EstTravaille', false);
-                if (jour.Matin) vm.$set(jour.Matin, 'Travaille', false);
-                if (jour.ApresMidi) vm.$set(jour.ApresMidi, 'Travaille', false);
-                while (jour.Horaires.length > 0) jour.Horaires.pop();
-            }} else {{
-                // Marquer le jour comme travaille (necessaire pour weekends/feries)
-                vm.$set(jour, 'EstTravaille', true);
-                if (jour.Matin) vm.$set(jour.Matin, 'Travaille', true);
-                if (jour.ApresMidi) vm.$set(jour.ApresMidi, 'Travaille', true);
-
-                // Trouver un horaire de reference pour cloner avec le bon prototype
-                let refH = null;
-                for (const j of jours) {{
-                    if (j.Horaires && j.Horaires.length) {{
-                        const h0 = j.Horaires[0];
-                        if (typeof h0.TempsTotalPlageHoraire === 'function') {{ refH = h0; break; }}
-                    }}
-                }}
-
-                // Ajuster le nombre de plages
-                while (jour.Horaires.length > pl.length) jour.Horaires.pop();
-                while (jour.Horaires.length < pl.length) {{
-                    const src = refH || jour.Horaires[0];
-                    const clone = Object.create(Object.getPrototypeOf(src));
-                    Object.keys(src).forEach(k => {{ clone[k] = src[k]; }});
-                    clone.HeureDebut = 0; clone.HeureFin = 0; clone.Id = 0;
-                    jour.Horaires.push(clone);
-                }}
-
-                // Injecter les valeurs avec Vue.$set pour la reactivite
-                for (let i = 0; i < pl.length; i++) {{
-                    vm.$set(jour.Horaires[i], 'HeureDebut', pl[i].debut);
-                    vm.$set(jour.Horaires[i], 'HeureFin', pl[i].fin);
-                    if (pl[i].tache) vm.$set(jour.Horaires[i], 'IdTache', pl[i].tache);
-                }}
-            }}
-
-            // Valider le jour (coche verte salarie)
-            vm.$set(jour, 'ValideeParSalarie', true);
-
-            // Forcer le re-rendu de tous les composants Vue
-            document.querySelectorAll('*').forEach(e => {{
-                try {{ if (e.__vue__?.$forceUpdate) e.__vue__.$forceUpdate(); }} catch(x) {{}}
-            }});
-
-            return 'OK:' + (pl.length ? pl.map(p => p.debut + '-' + p.fin).join(',') : 'JOUR_VIDE');
-        """)
-
-        if not result or not str(result).startswith('OK'):
-            driver.quit()
-            return False, f"Injection Vue echouee : {result}"
-
-        time.sleep(2)
-
-        # ── 5b. Injection variables eCollab (ASTREINTE, INDEMNITE ELOIGNEMENT) ──
-        var_result_msg = ""
-        if variables and (variables.get('astreinte', 0) > 0 or variables.get('indemniteEloignement', 0) > 0):
-            astreinte_val = int(variables.get('astreinte', 0))
-            indemnite_val = int(variables.get('indemniteEloignement', 0))
-
-            # Cliquer sur le jour pour ouvrir le détail (saisie-journée)
-            click_result = driver.execute_script(f"""
-                const tM = {target_mois};
-                const tJ = {target_jour};
-
-                // Chercher la ligne du jour dans les composants ligne-horaire
-                var allEls = document.querySelectorAll('*');
-                for (var i = 0; i < allEls.length; i++) {{
-                    try {{
-                        var v = allEls[i].__vue__;
-                        if (v && v.$props && v.$props.jour &&
-                            v.$props.jour.Jour === tJ && v.$props.jour.Mois === tM) {{
-                            // Chercher le lien/bouton cliquable dans la ligne
-                            var clickTarget = allEls[i].querySelector('a, .jour-label, td:first-child, .clickable') || allEls[i];
-                            clickTarget.click();
-                            return 'CLICKED';
-                        }}
-                    }} catch(e) {{}}
-                }}
-                // Fallback: chercher par texte du jour
-                var dayStr = String(tJ);
-                var tds = document.querySelectorAll('td, .day-cell, .jour-cell');
-                for (var j = 0; j < tds.length; j++) {{
-                    if (tds[j].textContent.trim() === dayStr) {{
-                        tds[j].click();
-                        return 'CLICKED_TD';
-                    }}
-                }}
-                return 'ERR_NO_DAY_CLICK';
-            """)
-
-            if click_result and click_result.startswith('CLICKED'):
-                time.sleep(3)  # Attendre ouverture du détail jour
-
-                # Chercher et remplir les champs de variables
-                var_set = driver.execute_script(f"""
-                    var results = [];
-                    var aVal = {astreinte_val};
-                    var iVal = {indemnite_val};
-
-                    // Methode 1: Chercher via le composant Vue saisie-journée
-                    var sjEl = document.getElementById('vue-vdp-saisie-journee');
-                    if (sjEl && sjEl.__vue__) {{
-                        var sjVm = sjEl.__vue__;
-                        // Essayer de modifier les valeurs via Vue data
-                        if (sjVm.valeursVariablesExistantes && sjVm.valeursVariablesExistantes.length) {{
-                            for (var k = 0; k < sjVm.valeursVariablesExistantes.length; k++) {{
-                                var v = sjVm.valeursVariablesExistantes[k];
-                                var label = (sjVm.variablesExistantes && sjVm.variablesExistantes[k])
-                                    ? (sjVm.variablesExistantes[k].Libelle || sjVm.variablesExistantes[k].libelle || '').toUpperCase()
-                                    : '';
-                                if (label.indexOf('ASTREINTE') !== -1 && aVal > 0) {{
-                                    sjVm.$set(sjVm.valeursVariablesExistantes, k, aVal);
-                                    results.push('VUE_ASTREINTE=' + aVal);
-                                }}
-                                if (label.indexOf('ELOIGNEMENT') !== -1 && iVal > 0) {{
-                                    sjVm.$set(sjVm.valeursVariablesExistantes, k, iVal);
-                                    results.push('VUE_INDEMNITE=' + iVal);
-                                }}
-                            }}
-                        }}
-                    }}
-
-                    // Methode 2: Chercher les inputs par label (fallback)
-                    if (results.length === 0) {{
-                        var allLabels = document.querySelectorAll('label, .variable-label, td');
-                        for (var i = 0; i < allLabels.length; i++) {{
-                            var txt = allLabels[i].textContent.trim().toUpperCase();
-                            var parent = allLabels[i].closest('tr, .form-group, .row, .variable-row, div');
-                            if (!parent) continue;
-                            var input = parent.querySelector('input[type="number"], input[type="text"], input');
-                            if (!input) continue;
-
-                            if (txt.indexOf('ASTREINTE') !== -1 && aVal > 0) {{
-                                var nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                                nativeSet.call(input, aVal);
-                                input.dispatchEvent(new Event('input', {{bubbles: true}}));
-                                input.dispatchEvent(new Event('change', {{bubbles: true}}));
-                                results.push('INPUT_ASTREINTE=' + aVal);
-                            }}
-                            if (txt.indexOf('ELOIGNEMENT') !== -1 && iVal > 0) {{
-                                var nativeSet2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                                nativeSet2.call(input, iVal);
-                                input.dispatchEvent(new Event('input', {{bubbles: true}}));
-                                input.dispatchEvent(new Event('change', {{bubbles: true}}));
-                                results.push('INPUT_INDEMNITE=' + iVal);
-                            }}
-                        }}
-                    }}
-
-                    // Sauvegarder dans le modal si possible
-                    if (results.length > 0) {{
-                        var saveBtn = null;
-                        var btns = document.querySelectorAll('button');
-                        for (var b = 0; b < btns.length; b++) {{
-                            var bt = btns[b].textContent.trim().toLowerCase();
-                            if (bt === 'enregistrer' || bt === 'valider' || bt === 'sauvegarder') {{
-                                saveBtn = btns[b]; break;
-                            }}
-                        }}
-                        if (saveBtn) {{
-                            saveBtn.click();
-                            results.push('MODAL_SAVED');
-                        }}
-                    }}
-
-                    return results.length ? results.join(',') : 'NO_VARS_FOUND';
-                """)
-                var_result_msg = f" | Variables: {var_set}"
-
-                time.sleep(2)
-
-                # Revenir à la vue saisie rapide si on est sur une autre page
-                driver.execute_script("""
-                    // Fermer le modal si ouvert (chercher bouton fermer/retour)
-                    var closeBtn = document.querySelector('.close, .btn-close, [aria-label="Close"], .modal .close');
-                    if (closeBtn) closeBtn.click();
-                    // Cliquer sur l'onglet Saisie Rapide si nécessaire
-                    var tabs = document.querySelectorAll('a, button, .nav-link, [role="tab"]');
-                    for (var i = 0; i < tabs.length; i++) {
-                        if (tabs[i].textContent.trim().toLowerCase().indexOf('saisie rapide') !== -1) {
-                            tabs[i].click(); break;
-                        }
-                    }
-                """)
-                time.sleep(2)
-
-        # ── 6. Sauvegarder via Vue method ────────────────────────────────────
-        save_result = driver.execute_script("""
-            // Appeler directement la methode Vue SaveVariablePaie
-            var el = document.querySelector('#vueSaisieRapide');
-            if (el && el.__vue__) {
-                var vm = el.__vue__;
-                if (typeof vm.SaveVariablePaie === 'function') {
-                    vm.SaveVariablePaie();
-                    return 'VUE_SAVE:SaveVariablePaie()';
-                }
-            }
-            // Fallback : chercher bouton "Sauvegarder" par texte
-            var allBtns = document.querySelectorAll('button');
-            for (var i = 0; i < allBtns.length; i++) {
-                var t = allBtns[i].textContent.trim().toLowerCase();
-                if (t === 'sauvegarder' || t === 'sauvegarder et terminer') {
-                    allBtns[i].click();
-                    return 'CLICKED:' + allBtns[i].textContent.trim();
-                }
-            }
-            return 'ERR_NO_SAVE';
-        """)
-        time.sleep(3)
-
-        # Verifier s'il y a un message de succes ou d'erreur apres la sauvegarde
-        post_save = driver.execute_script("""
-            const alerts = document.querySelectorAll('.alert, .toast, .notification, [class*=success], [class*=error], [class*=alert]');
-            const msgs = [...alerts].map(a => a.textContent.trim()).filter(t => t.length > 0 && t.length < 200);
-            return { save_btn: arguments[0] || 'none', messages: msgs.slice(0, 5), url: window.location.href };
-        """)
-
-        resume = " | ".join(f"{p['debut']} \u2192 {p['fin']}" for p in plages) if plages else "Journée vide"
-        if date_str:
-            parts = date_str.split('-')
-            date_label = f"{parts[2]}/{parts[1]}/{parts[0]}"
-        else:
-            date_label = "aujourd'hui"
-        driver.quit()
-        return True, f"Cl\u00f4ture r\u00e9ussie ({date_label}) : {resume}{var_result_msg}"
-
-    except Exception as e:
+def _extract_recap(model, mois, annee):
+    mois = int(mois); annee = int(annee)
+    recap = {}
+    total_min = 0
+    weeks = {}
+    for j in (model.get('Jours') or []):
         try:
-            driver.quit()
+            if int(j.get('Mois', 0)) != mois or int(j.get('Annee', 0)) != annee:
+                continue
+            jour = int(j.get('Jour'))
+        except Exception:
+            continue
+        day_min = 0
+        for h in (j.get('Horaires') or []):
+            hd = h.get('HeureDebut'); hf = h.get('HeureFin')
+            if hd is not None and hf is not None:
+                try:
+                    hd = int(hd); hf = int(hf)
+                    if hf > hd:
+                        day_min += (hf - hd)
+                except Exception:
+                    pass
+        total_min += day_min
+        try:
+            dt = datetime.date(annee, mois, jour)
+            iso_week = dt.isocalendar()[1]
+            weeks.setdefault(iso_week, 0)
+            weeks[iso_week] += day_min
         except Exception:
             pass
-        return False, f"Erreur inattendue : {e}"
+
+    recap['totalHeures'] = min_to_hhmm(total_min) if total_min else '0'
+
+    detail = []
+    for wk in sorted(weeks.keys()):
+        wk_min = weeks[wk]
+        supp = max(0, wk_min - 35 * 60)
+        detail.append({
+            'plage': f'S{wk}',
+            'heuresSupp': min_to_hhmm(supp) if supp else '0',
+            'heuresSuppEquivalentes': min_to_hhmm(supp) if supp else '0',
+        })
+    recap['detailParSemaine'] = detail
+
+    return recap
+
+
+def _extract_taches(model):
+    taches = []
+    seen = set()
+    for j in (model.get('Jours') or []):
+        for h in (j.get('Horaires') or []):
+            tid = h.get('IdTache')
+            tname = h.get('LibelleTache') or h.get('Libelle') or ''
+            if tid and tid not in seen:
+                seen.add(tid)
+                if tname:
+                    taches.append({'id': tid, 'label': tname})
+    return taches
+
+
+# ─── CLÔTURE (API directe) ──────────────────────────────────────────────────
+def cloture_direct(email, password, url, plages, date_str="", variables=None, _retry=True):
+    if not date_str:
+        return False, "Date requise pour la clôture"
+
+    try:
+        dt = datetime.date.fromisoformat(date_str)
+    except Exception:
+        return False, f"Date invalide : {date_str}"
+
+    mois, annee = dt.month, dt.year
+    target_jour = dt.day
+    id_contrat = _extract_id_contrat(url)
+    if not id_contrat:
+        return False, "idContrat introuvable dans l'URL"
+
+    try:
+        session, base = _ensure_http_session(email, password, url)
+        model = _get_vdp(session, base, id_contrat, mois, annee)
+
+        if not isinstance(model, dict) or 'Jours' not in model:
+            return False, "Réponse GetVDPSalarie inattendue (pas de 'Jours')"
+
+        jour_found = None
+        for j in (model.get('Jours') or []):
+            try:
+                if int(j.get('Jour', -1)) == target_jour and \
+                   int(j.get('Mois', 0)) == mois and \
+                   int(j.get('Annee', 0)) == annee:
+                    jour_found = j
+                    break
+            except Exception:
+                continue
+
+        if not jour_found:
+            return False, f"Jour {target_jour}/{mois:02d}/{annee} introuvable dans le modèle"
+
+        if not plages:
+            jour_found['EstTravaille'] = False
+            if jour_found.get('Matin'):
+                jour_found['Matin']['Travaille'] = False
+            if jour_found.get('ApresMidi'):
+                jour_found['ApresMidi']['Travaille'] = False
+            horaires = jour_found.get('Horaires') or []
+            while len(horaires) > 0:
+                horaires.pop()
+        else:
+            jour_found['EstTravaille'] = True
+            if jour_found.get('Matin'):
+                jour_found['Matin']['Travaille'] = True
+            if jour_found.get('ApresMidi'):
+                jour_found['ApresMidi']['Travaille'] = True
+
+            horaires = jour_found.get('Horaires') or []
+            if not horaires:
+                jour_found['Horaires'] = horaires
+
+            ref_horaire = None
+            for jj in (model.get('Jours') or []):
+                for hh in (jj.get('Horaires') or []):
+                    if hh.get('HeureDebut') is not None:
+                        ref_horaire = hh
+                        break
+                if ref_horaire:
+                    break
+
+            while len(horaires) > len(plages):
+                horaires.pop()
+            while len(horaires) < len(plages):
+                if ref_horaire:
+                    clone = dict(ref_horaire)
+                else:
+                    clone = {}
+                clone['HeureDebut'] = 0
+                clone['HeureFin'] = 0
+                clone['Id'] = 0
+                horaires.append(clone)
+
+            for i, p in enumerate(plages):
+                horaires[i]['HeureDebut'] = to_minutes(p['debut'])
+                horaires[i]['HeureFin'] = to_minutes(p['fin'])
+                if p.get('tache'):
+                    horaires[i]['IdTache'] = int(p['tache'])
+
+        jour_found['ValideeParSalarie'] = True
+
+        if variables:
+            astreinte_val = int(variables.get('astreinte', 0))
+            indemnite_val = int(variables.get('indemniteEloignement', 0))
+            if astreinte_val > 0 or indemnite_val > 0:
+                var_sources = [jour_found.get('VariablesJour'), jour_found.get('Variables'),
+                               jour_found.get('ValeursVariables'), jour_found.get('ListeVariables')]
+                for src in var_sources:
+                    if src and isinstance(src, list):
+                        for v in src:
+                            lib = (v.get('Libelle') or v.get('libelle') or v.get('Label') or v.get('Nom') or '').upper()
+                            if 'ASTREINTE' in lib and astreinte_val > 0:
+                                v['Valeur'] = astreinte_val
+                                if 'valeur' in v: v['valeur'] = astreinte_val
+                                if 'Value' in v: v['Value'] = astreinte_val
+                                if 'Quantite' in v: v['Quantite'] = astreinte_val
+                            if 'ELOIGNEMENT' in lib and indemnite_val > 0:
+                                v['Valeur'] = indemnite_val
+                                if 'valeur' in v: v['valeur'] = indemnite_val
+                                if 'Value' in v: v['Value'] = indemnite_val
+                                if 'Quantite' in v: v['Quantite'] = indemnite_val
+                        break
+
+        r = session.post(f"{base}/Paie/VariablePaieAPI/SaveVariablePaie",
+                         params={'idContrat': id_contrat},
+                         json={'model': model},
+                         headers={'Content-Type': 'application/json;charset=utf-8'},
+                         timeout=60)
+
+        if r.status_code in (401, 403) and _retry:
+            _reset_http_session()
+            return cloture_direct(email, password, url, plages, date_str, variables, _retry=False)
+
+        if not r.ok:
+            return False, f"Echec sauvegarde HTTP {r.status_code}"
+
+        resume = " | ".join(f"{p['debut']} → {p['fin']}" for p in plages) if plages else "Journée vide"
+        date_label = f"{dt.day:02d}/{dt.month:02d}/{dt.year}"
+        var_msg = ""
+        if variables and (variables.get('astreinte', 0) > 0 or variables.get('indemniteEloignement', 0) > 0):
+            parts = []
+            if variables.get('astreinte', 0) > 0: parts.append(f"Astreinte={variables['astreinte']}")
+            if variables.get('indemniteEloignement', 0) > 0: parts.append(f"Éloignement={variables['indemniteEloignement']}")
+            var_msg = " | Variables: " + ", ".join(parts)
+
+        return True, f"Clôture réussie ({date_label}) : {resume}{var_msg}"
+
+    except RuntimeError as e:
+        return False, str(e)
+    except Exception as e:
+        return False, f"Erreur clôture directe : {e}"
 
 
 # ─── ROUTES API ──────────────────────────────────────────────────────────────
 
-@app.route("/debug", methods=["GET"])
-def debug():
-    """Diagnostique Chrome/Chromedriver sur le serveur."""
-    import shutil, glob, os
-    def find_bin(*names):
-        for name in names:
-            p = shutil.which(name)
-            if p: return p
-        for name in names:
-            matches = glob.glob(f"/nix/store/*/{name}") + glob.glob(f"/nix/store/*/bin/{name}")
-            if matches: return matches[0]
-        return None
-
-    return jsonify({
-        "chromium":     find_bin("chromium", "chromium-browser", "google-chrome"),
-        "chromedriver": find_bin("chromedriver"),
-        "PATH":         os.environ.get("PATH", ""),
-        "nix_chromium": glob.glob("/nix/store/*/bin/chromium")[:3],
-        "nix_driver":   glob.glob("/nix/store/*/bin/chromedriver")[:3],
-    })
-
-
-@app.route("/screenshot", methods=["POST"])
-def screenshot():
-    import base64, re as _re
-    data     = request.get_json(force=True)
-    email    = data.get("email","").strip()
-    password = data.get("password","").strip()
-    url      = data.get("url","").strip()
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
-    opts = Options()
-    opts.add_argument("--headless=new"); opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage"); opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1280,900")
-    cp = os.environ.get("CHROME_BIN") or shutil.which("chromium") or shutil.which("chromium-browser")
-    dp = os.environ.get("CHROMEDRIVER_PATH") or shutil.which("chromedriver")
-    if cp: opts.binary_location = cp
-    driver = webdriver.Chrome(service=Service(dp), options=opts)
-    try:
-        today_d = datetime.date.today()
-        url = _re.sub(r'mois=\d+', f'mois={today_d.month:02d}', url)
-        url = _re.sub(r'annee=\d+', f'annee={today_d.year}', url)
-        driver.get(url); time.sleep(3)
-        cur = driver.current_url.lower()
-        if "login" in cur or "account" in cur or "connect" in cur or "auth" in cur:
-            try:
-                inputs = driver.find_elements("css selector","input")
-                email_el = next((i for i in inputs if i.get_attribute("placeholder") in ("Email","email","Login","login") or i.get_attribute("type")=="email" or i.get_attribute("name") in ("Email","email")), None)
-                pwd_el   = next((i for i in inputs if i.get_attribute("type")=="password"), None)
-                if email_el: email_el.clear(); email_el.send_keys(email)
-                if pwd_el:   pwd_el.clear();   pwd_el.send_keys(password)
-                btns = driver.find_elements("css selector","button, input[type='submit']")
-                btn  = next((b for b in btns if b.text.strip().upper() in ("SE CONNECTER","CONNEXION","CONNECT","LOGIN","VALIDER") or b.get_attribute("type")=="submit"), None)
-                if btn: btn.click()
-                elif pwd_el:
-                    from selenium.webdriver.common.keys import Keys
-                    pwd_el.send_keys(Keys.RETURN)
-                time.sleep(4)
-            except: pass
-        # Capturer HTML popup RGPD AVANT toute tentative
-        popup_html = driver.execute_script(
-            "const modals=[...document.querySelectorAll('[class*=modal],[class*=popup],[class*=rgpd],[class*=overlay]')];"
-            "if(modals.length) return modals[0].outerHTML.substring(0,2000);"
-            "return 'NO_MODAL_FOUND';"
-        )
-        # Tous les boutons visibles sur la page
-        all_buttons = driver.execute_script(
-            "return [...document.querySelectorAll('button,a')].map(b=>({"
-            "  tag:b.tagName, text:b.textContent.trim().substring(0,50),"
-            "  cls:b.className.substring(0,50), visible:b.offsetParent!==null"
-            "})).filter(b=>b.text.length>0).slice(0,30);"
-        )
-        time.sleep(1)
-        # Inspecter le bouton RGPD en détail
-        rgpd_info = driver.execute_script(
-            "const all=[...document.querySelectorAll('button,a,span,div,p')];"
-            "const matches=all.filter(x=>x.textContent.includes('COMPRIS'));"
-            "return matches.map(x=>({"
-            "  tag:x.tagName,"
-            "  text:JSON.stringify(x.textContent.trim()),"
-            "  html:x.outerHTML.substring(0,200),"
-            "  codes:[...x.textContent].map(c=>c.charCodeAt(0))"
-            "}));"
-        )
-        rgpd_still_open = bool(rgpd_info)
-        png = driver.get_screenshot_as_base64()
-        day_cells = driver.execute_script("""
-            const cells = document.querySelectorAll('td, [class*="jour"], [class*="day"]');
-            return Array.from(cells).slice(0,30).map(c => ({
-                tag: c.tagName, text: c.textContent.trim().substring(0,30),
-                hasOnclick: !!c.onclick, cls: c.className.substring(0,50)
-            }));
-        """)
-        final_url = driver.current_url; title = driver.title
-        driver.quit()
-        return jsonify({"title":title,"url":final_url,"screenshot":png,"day_cells":day_cells,"rgpd_open":rgpd_still_open,"rgpd_info":rgpd_info,"popup_html":popup_html,"all_buttons":all_buttons})
-    except Exception as e:
-        try: driver.quit()
-        except: pass
-        return jsonify({"error":str(e)}), 500
-
-
 @app.route("/ping", methods=["GET"])
 def ping():
     """Test de connexion depuis la PWA."""
-    return jsonify({"status": "ok", "message": "Serveur opérationnel"})
+    return jsonify({"status": "ok", "message": "Serveur opérationnel (API directe)"})
 
 
 @app.route("/vapid-public-key", methods=["GET"])
 def vapid_public_key():
-    return jsonify({"publicKey": VAPID_KEYS['publicKey']})
+    return jsonify({"publicKey": VAPID_KEYS.get('publicKey', '')})
 
 
 @app.route("/push-status", methods=["POST"])
 def push_status():
     data = request.get_json(force=True)
     email = (data.get("email") or "").strip()
+    if not email:
+        return jsonify({"hasSubscription": False})
     subs = _load_push_subs()
-    sub = subs.get(email)
-    return jsonify({
-        "pushAvailable": PUSH_AVAILABLE,
-        "hasVapidKeys": bool(VAPID_KEYS.get('publicKey')),
-        "hasSubscription": bool(sub),
-        "subscriptionEndpoint": sub.get("endpoint", "")[:80] if sub else None,
-        "totalSubscriptions": len(subs)
-    })
+    return jsonify({"hasSubscription": email in subs})
 
 
 @app.route("/subscribe", methods=["POST"])
 def subscribe():
     data = request.get_json(force=True)
     email = (data.get("email") or "").strip()
-    subscription = data.get("subscription")
-    if not email or not subscription:
+    sub = data.get("subscription")
+    if not email or not sub:
         return jsonify({"success": False, "error": "Email et subscription requis"}), 400
     subs = _load_push_subs()
-    subs[email] = subscription
+    subs[email] = sub
     _save_push_subs(subs)
-    print(f"[PUSH] Abonnement enregistré pour {email}")
+    print(f"[PUSH] Subscription enregistrée pour {email}")
     return jsonify({"success": True})
 
 
@@ -1051,46 +554,16 @@ def test_push():
     delay = int(data.get("delay", 300))
     if not email:
         return jsonify({"success": False, "error": "Email requis"}), 400
-    if not PUSH_AVAILABLE:
-        return jsonify({"success": False, "error": "pywebpush non installé sur le serveur"}), 500
-    subs = _load_push_subs()
-    if email not in subs:
-        return jsonify({"success": False, "error": "Aucun abonnement push pour cet email"}), 400
-
-    # Test immédiat : vérifier que le push fonctionne
-    try:
-        webpush(
-            subscription_info=subs[email],
-            data=json.dumps({"title": "Test push immediat", "body": "Le push fonctionne ! Notification dans 5 min a suivre..."}),
-            vapid_private_key=VAPID_KEYS['privateKey'],
-            vapid_claims={"sub": "mailto:" + email}
-        )
-    except WebPushException as e:
-        resp_body = ""
-        if hasattr(e, 'response') and e.response:
-            try: resp_body = e.response.text[:200]
-            except: pass
-        return jsonify({"success": False, "error": f"Push échoué : {e} | {resp_body}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "error": f"Erreur push : {e}"}), 500
-
-    # Push différé dans un thread
-    def _delayed_push():
+    _send_push(email, "Test push", "Notification de test immédiate")
+    def delayed():
         time.sleep(delay)
-        _send_push(email, "Test notification (5 min)", "Si vous voyez ceci, les notifications push fonctionnent meme app fermee !")
-        print(f"[PUSH] Test push différé envoyé à {email} après {delay}s")
-
-    t = threading.Thread(target=_delayed_push, daemon=True)
-    t.start()
+        _send_push(email, "Test push différé", f"Notification reçue après {delay}s")
+    threading.Thread(target=delayed, daemon=True).start()
     return jsonify({"success": True, "message": f"Push immédiat envoyé + notification dans {delay}s"})
 
 
 @app.route("/test-login", methods=["POST"])
 def test_login():
-    """
-    Teste les identifiants eCollab via Selenium.
-    Corps : { "email": "...", "password": "...", "url": "..." }
-    """
     data = request.get_json(force=True)
     email    = (data.get("email")    or "").strip()
     password = (data.get("password") or "").strip()
@@ -1102,87 +575,18 @@ def test_login():
         return jsonify({"success": False, "error": "URL Ecollaboratrice requise"}), 400
 
     try:
-        from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.by import By
-        import re as _re
-
-        opts = Options()
-        opts.add_argument("--headless=new")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-blink-features=AutomationControlled")
-
-        chromium_path   = os.environ.get("CHROMIUM_PATH")
-        chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
-        if chromium_path:
-            opts.binary_location = chromium_path
-        if chromedriver_path:
-            service = Service(chromedriver_path)
-            driver  = webdriver.Chrome(service=service, options=opts)
-        else:
-            from webdriver_manager.chrome import ChromeDriverManager
-            service = Service(ChromeDriverManager().install())
-            driver  = webdriver.Chrome(service=service, options=opts)
-
-        # Ouvrir domaine + cookie RGPD
-        base_url = '/'.join(url.split('/')[:3])
-        driver.set_page_load_timeout(15)
-        driver.get(base_url)
-        time.sleep(1)
-        driver.add_cookie({'name': 'alert-rgpd', 'value': 'true', 'domain': base_url.replace('https://', '').replace('http://', '')})
-
-        # Naviguer vers l'URL eCollab (redirige vers login)
-        today_d = datetime.date.today()
-        url = _re.sub(r'mois=\d+', f'mois={today_d.month:02d}', url)
-        url = _re.sub(r'annee=\d+', f'annee={today_d.year}', url)
-        driver.get(url)
-
-        # Attendre le champ email (max 10s)
-        email_el = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='email'], input[placeholder='Email'], input[name='Email']"))
-        )
-        email_el.clear()
-        email_el.send_keys(email)
-        pwd_el = driver.find_element('css selector', "input[type='password']")
-        pwd_el.clear()
-        pwd_el.send_keys(password)
-        btn = driver.find_element('css selector', "button[type='submit']")
-        driver.execute_script("arguments[0].click();", btn)
-
-        # Attendre la redirection apres soumission
-        time.sleep(3)
-
-        # Re-naviguer vers l'URL cible pour verifier si la session est active
-        driver.get(url)
-        time.sleep(2)
-        after_url = driver.current_url.lower()
-        driver.quit()
-
-        # Si redirige vers login = identifiants incorrects
-        if 'login' in after_url or 'account' in after_url or 'connect' in after_url or 'auth' in after_url:
-            return jsonify({"success": False, "error": "Identifiants incorrects"})
-        # Sinon on a acces a la page = login OK
+        _reset_http_session()
+        _ensure_http_session(email, password, url)
         return jsonify({"success": True, "message": "Connexion reussie"})
-
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)})
     except Exception as e:
-        try:
-            driver.quit()
-        except:
-            pass
-        msg = str(e).split('\n')[0]  # Premiere ligne seulement, pas le stacktrace
+        msg = str(e).split('\n')[0]
         return jsonify({"success": False, "error": f"Erreur serveur : {msg}"}), 500
 
 
 @app.route("/fetch-week", methods=["POST"])
 def fetch_week():
-    """
-    Lit les horaires depuis eCollab pour le mois de la date donnée.
-    Corps : { "email": "...", "password": "...", "url": "...", "date": "2026-03-08" }
-    """
     data = request.get_json(force=True)
     email    = (data.get("email")    or "").strip()
     password = (data.get("password") or "").strip()
@@ -1197,8 +601,6 @@ def fetch_week():
     success, result, debug_keys, recap, taches = fetch_ecollab_days(email, password, url, date_str)
     if success:
         resp = {"success": True, "days": result}
-        if debug_keys:
-            resp["_debug_keys"] = debug_keys
         if recap:
             resp["recap"] = recap
         if taches:
@@ -1210,38 +612,25 @@ def fetch_week():
 
 @app.route("/cloture", methods=["POST"])
 def cloture():
-    """
-    Corps attendu :
-    {
-        "email":    "user@example.com",
-        "password": "••••••••",
-        "url":      "https://drive.ecollaboratrice.com/...",
-        "plages":   [{"debut": "08:00", "fin": "12:00"}, ...]
-    }
-    """
     data = request.get_json(force=True)
 
     email    = (data.get("email")    or "").strip()
     password = (data.get("password") or "").strip()
     url      = (data.get("url")      or "").strip()
     plages   = data.get("plages", [])
-    date_str = (data.get("date") or "").strip()  # date réelle du pointage YYYY-MM-DD
-    variables = data.get("variables", {})  # {astreinte: N, indemniteEloignement: N}
+    date_str = (data.get("date") or "").strip()
+    variables = data.get("variables", {})
 
-    # Validation
     if not email or not password:
         return jsonify({"success": False, "error": "Email et mot de passe requis"}), 400
     if not url:
         return jsonify({"success": False, "error": "URL Ecollaboratrice requise"}), 400
-    # Vérifier format plages (vide = journée non travaillée)
     for p in plages:
         if not p.get("debut") or not p.get("fin"):
             return jsonify({"success": False, "error": f"Plage incomplète : {p}"}), 400
 
-    # Lancer la clôture
-    success, message = cloture_selenium(email, password, url, plages, date_str, variables)
+    success, message = cloture_direct(email, password, url, plages, date_str, variables)
 
-    # Envoyer la notification push (avant la réponse HTTP, car le client peut ne pas la recevoir)
     if success:
         _send_push(email, "Clôture réussie", message)
         return jsonify({"success": True, "message": message})
@@ -1255,6 +644,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"\n{'='*50}")
     print(f"  Serveur Pointage CM — port {port}")
+    print(f"  Mode : API directe (sans Selenium)")
     print(f"  Test : http://localhost:{port}/ping")
     print(f"{'='*50}\n")
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
