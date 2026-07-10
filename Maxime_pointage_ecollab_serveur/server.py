@@ -331,22 +331,16 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
 
     try:
         session, base = _ensure_http_session(email, password, url)
-        r = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPSalarie",
-                        params={'idContrat': id_contrat, 'mois': f'{mois:02d}', 'annee': annee},
-                        timeout=30)
-        if r.status_code in (401, 403) and _retry:
-            _reset_http_session()
-            return fetch_ecollab_days(email, password, url, date_str, _retry=False)
-        r.raise_for_status()
-        model = r.json()
-
-        if not isinstance(model, dict) or 'Jours' not in model:
-            return False, "Réponse GetVDPSalarie inattendue", [], None, []
+        try:
+            model = _get_vdp(session, base, id_contrat, mois, annee)
+        except Exception as e:
+            if _retry:
+                _reset_http_session()
+                return fetch_ecollab_days(email, password, url, date_str, _retry=False)
+            raise
 
         days = _model_to_days(model, mois, annee)
-
         recap = _extract_recap(model, mois, annee)
-
         taches = _extract_taches(model)
 
         return True, days, [], recap, taches
