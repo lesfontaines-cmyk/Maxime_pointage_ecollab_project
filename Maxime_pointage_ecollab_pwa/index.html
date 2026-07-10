@@ -3419,7 +3419,16 @@ function _fetchExerciseMonths(year, month) {
   info.months.forEach(function(mk) {
     if (mk > currentMonthKey) return;
     var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + mk;
-    if (!localStorage.getItem(cacheKey)) missing.push(mk);
+    var dataKey = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
+    if (!localStorage.getItem(cacheKey)) { missing.push(mk); return; }
+    try {
+      var cached = JSON.parse(localStorage.getItem(dataKey));
+      if (cached && !cached.empty && cached.totalHeuresSupp === undefined) {
+        localStorage.removeItem(cacheKey);
+        localStorage.removeItem(dataKey);
+        missing.push(mk);
+      }
+    } catch(e) { missing.push(mk); }
   });
   if (missing.length === 0) return;
   _fetchExerciseLock = true;
