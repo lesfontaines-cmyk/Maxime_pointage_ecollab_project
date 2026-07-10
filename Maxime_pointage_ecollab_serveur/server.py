@@ -351,52 +351,177 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
         return False, f"Erreur lecture directe : {e}", [], None, []
 
 
+def _day_hours(j):
+    """Heures totales d'un jour (en decimal, ex: 7.25 pour 7h15)."""
+    if not j.get('EstTravaille'):
+        return 0.0
+    total = 0
+    for h in (j.get('Horaires') or []):
+        hd = h.get('HeureDebut'); hf = h.get('HeureFin')
+        if hd is not None and hf is not None:
+            try:
+                hd = int(hd); hf = int(hf)
+                if hf > hd:
+                    total += (hf - hd)
+            except Exception:
+                pass
+    return total / 60.0
+
+
+def _model_day_hours(m):
+    """Heures attendues d'un jour SemaineNormale (en decimal)."""
+    total = 0
+    for h in (m.get('Horaires') or []):
+        hd = h.get('HeureDebut'); hf = h.get('HeureFin')
+        if hd is not None and hf is not None:
+            try:
+                hd = int(hd); hf = int(hf)
+                if hf > hd:
+                    total += (hf - hd)
+            except Exception:
+                pass
+    return total / 60.0
+
+
 def _extract_recap(model, mois, annee):
     mois = int(mois); annee = int(annee)
     recap = {}
+
+    # Total des heures travaillees ce mois (pour affichage)
     total_min = 0
-    weeks = {}
     for j in (model.get('Jours') or []):
         try:
             if int(j.get('Mois', 0)) != mois or int(j.get('Annee', 0)) != annee:
                 continue
-            jour = int(j.get('Jour'))
         except Exception:
             continue
-        day_min = 0
         for h in (j.get('Horaires') or []):
             hd = h.get('HeureDebut'); hf = h.get('HeureFin')
             if hd is not None and hf is not None:
                 try:
                     hd = int(hd); hf = int(hf)
                     if hf > hd:
-                        day_min += (hf - hd)
+                        total_min += (hf - hd)
                 except Exception:
                     pass
-        total_min += day_min
-        try:
-            dt = datetime.date(annee, mois, jour)
-            iso_week = dt.isocalendar()[1]
-            weeks.setdefault(iso_week, 0)
-            weeks[iso_week] += day_min
-        except Exception:
-            pass
-
     recap['totalHeures'] = min_to_hhmm(total_min) if total_min else '0'
 
+    # --- Calcul H.SUPP selon l'algorithme eCollaboratrice ---
+    all_jours = list(model.get('JoursBefore') or []) + list(model.get('Jours') or [])
+    semaine_normale = model.get('SemaineNormale') or []
+    index_fin = model.get('IndexFinCalculHeuresSupplementaires')
+    nhs = model.get('NombreHeuresSemaine')
+    nombre_heures_semaine = float(nhs) if nhs and str(nhs).strip() else None
+
+    if index_fin is not None:
+        all_jours = all_jours[:index_fin + 1]
+
+    # Aligner SemaineNormale avec all_jours par date
+    sn_by_date = {}
+    for m_day in semaine_normale:
+        try:
+            k = (int(m_day['Jour']), int(m_day['Mois']), int(m_day['Annee']))
+            sn_by_date[k] = m_day
+        except Exception:
+            pass
+    modeles = []
+    for j in all_jours:
+        try:
+            k = (int(j['Jour']), int(j['Mois']), int(j['Annee']))
+            modeles.append(sn_by_date.get(k))
+        except Exception:
+            modeles.append(None)
+
+    # Decouper en lots (semaine Lun->Dim)
+    # JourSemaine: 0=Dim, 1=Lun, ..., 6=Sam  (dans le modele eCollab)
     detail = []
-    total_supp_min = 0
-    for wk in sorted(weeks.keys()):
-        wk_min = weeks[wk]
-        supp = max(0, wk_min - 35 * 60)
-        total_supp_min += supp
+    total_hs_hours = 0.0
+    total_feries = 0.0
+    i = 0
+    while i < len(all_jours):
+        end = i
+        while end < len(all_jours):
+            j = all_jours[end]
+            m_day = modeles[end] if end < len(modeles) else None
+            is_sunday = j.get('JourSemaine') == 0
+            cycle_end = (m_day is not None and
+                         m_day.get('SemaineNombre') == m_day.get('SemaineNumero'))
+            if is_sunday and cycle_end:
+                break
+            end += 1
+
+        lot_jours = all_jours[i:end + 1]
+        lot_modeles = modeles[i:end + 1]
+
+        # Compter les semaines dans le lot
+        nb_mondays = sum(1 for j in lot_jours if j.get('JourSemaine') == 1)
+        nb_semaines = nb_mondays + (1 if lot_jours and lot_jours[0].get('JourSemaine') != 1 else 0)
+        nb_semaines = max(1, nb_semaines)
+
+        # Heures reelles (jours travailles)
+        actual = sum(_day_hours(j) for j in lot_jours)
+
+        # Heures attendues
+        if nombre_heures_semaine is not None:
+            expected = nombre_heures_semaine * nb_semaines
+        else:
+            expected = sum(_model_day_hours(m) for m in lot_modeles if m)
+
+        diff = round(actual - expected, 2)
+
+        # Offset jours feries chomes (comme eCollab)
+        if diff < 0:
+            heures_feries_chomes = sum(
+                _day_hours(j) for j in lot_jours
+                if j.get('EstFerie') and j.get('FerieChome') and j.get('EstTravaille')
+            )
+            if heures_feries_chomes > 0 and abs(diff) > heures_feries_chomes:
+                diff = round(diff + heures_feries_chomes, 2)
+                total_feries += heures_feries_chomes
+            elif heures_feries_chomes > 0:
+                total_feries += abs(diff)
+                diff = 0.0
+
+        total_hs_hours += diff
+
+        try:
+            d0 = lot_jours[0]
+            d1 = lot_jours[-1]
+            plage = f"{d0.get('Jour')}/{d0.get('Mois'):02d} - {d1.get('Jour')}/{d1.get('Mois'):02d}"
+        except Exception:
+            plage = '?'
+
         detail.append({
-            'plage': f'S{wk}',
-            'heuresSupp': min_to_hhmm(supp) if supp else '0',
-            'heuresSuppEquivalentes': min_to_hhmm(supp) if supp else '0',
+            'plage': plage,
+            'heuresSupp': str(round(diff, 2)),
+            'heuresSuppEquivalentes': str(round(diff, 2)),
         })
+
+        i = end + 1
+
     recap['detailParSemaine'] = detail
-    recap['totalHeuresSupp'] = round(total_supp_min / 60, 2)
+    recap['totalHeuresSupp'] = round(total_hs_hours, 2)
+
+    # --- Heures jour feries (travailles sur un jour ferie non-chome) ---
+    heures_feries_travaillees = 0.0
+    heures_dimanche = 0.0
+    for j in (model.get('Jours') or []):
+        try:
+            if int(j.get('Mois', 0)) != mois or int(j.get('Annee', 0)) != annee:
+                continue
+        except Exception:
+            continue
+        if not j.get('EstTravaille'):
+            continue
+        h_jour = _day_hours(j)
+        if j.get('EstFerie') and not j.get('FerieChome'):
+            heures_feries_travaillees += h_jour
+        if j.get('JourSemaine') == 0:
+            heures_dimanche += h_jour
+
+    recap['totalHeuresFeries'] = round(heures_feries_travaillees, 2)
+    recap['totalHeuresNuit'] = 0.0
+    recap['totalHeuresDimanche'] = round(heures_dimanche, 2)
 
     return recap
 
@@ -649,48 +774,6 @@ def test_login():
     except Exception as e:
         msg = str(e).split('\n')[0]
         return jsonify({"success": False, "error": f"Erreur serveur : {msg}"}), 500
-
-
-@app.route("/debug-model", methods=["POST"])
-def debug_model():
-    data = request.get_json(force=True)
-    email    = (data.get("email")    or "").strip()
-    password = (data.get("password") or "").strip()
-    url      = (data.get("url")      or "").strip()
-    mois = data.get("mois", 7)
-    annee = data.get("annee", 2026)
-    id_contrat = _extract_id_contrat(url)
-    try:
-        session, base = _ensure_http_session(email, password, url)
-        model = _get_vdp(session, base, id_contrat, mois, annee)
-        keys_info = {}
-        for k, v in model.items():
-            if k == 'Jours':
-                keys_info[k] = f"[{len(v)} items]"
-                if v:
-                    keys_info['Jours_0_keys'] = list(v[0].keys()) if isinstance(v[0], dict) else str(type(v[0]))
-            elif k == '_full_response':
-                keys_info[k] = f"[len={len(str(v))}]"
-            elif isinstance(v, (list, dict)):
-                keys_info[k] = json.dumps(v, default=str)[:500]
-            else:
-                keys_info[k] = str(v)[:300]
-        # Also try fetching the recap page HTML to find the endpoint
-        recap_endpoints = {}
-        for ep in [
-            f"/Paie/VariablePaieAPI/GetRecapitulatif?idContrat={id_contrat}&mois={mois:02d}&annee={annee}",
-            f"/Paie/VariablePaieAPI/GetRecapVDP?idContrat={id_contrat}&mois={mois:02d}&annee={annee}",
-            f"/Paie/RecapitulatifAPI/GetRecapitulatif?idContrat={id_contrat}&mois={mois:02d}&annee={annee}",
-        ]:
-            try:
-                r = session.get(f"{base}{ep}", timeout=10)
-                ct = r.headers.get('content-type', '')
-                recap_endpoints[ep] = {'status': r.status_code, 'ct': ct, 'body': r.text[:500]}
-            except Exception as e:
-                recap_endpoints[ep] = {'error': str(e)}
-        return jsonify({"keys": keys_info, "recap_endpoints": recap_endpoints})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/fetch-week", methods=["POST"])

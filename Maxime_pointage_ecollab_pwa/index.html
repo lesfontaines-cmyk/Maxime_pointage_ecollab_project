@@ -3357,27 +3357,27 @@ function _renderEcollabRecap(monthKey) {
   });
 
   // Heures feries
-  var hf = recap.heuresFeries || {};
+  var hfVal = recap.totalHeuresFeries || 0;
   items.push({
     label: 'H. Feries',
-    value: (hf.total || 0) + 'h',
-    sub: hf.majorees > 0 ? 'maj. ' + hf.majorees + 'h' : ''
+    value: hfVal + 'h',
+    sub: ''
   });
 
   // Heures nuit
-  var hn = recap.heuresNuit || {};
+  var hnVal = recap.totalHeuresNuit || 0;
   items.push({
     label: 'H. Nuit',
-    value: (hn.total || 0) + 'h',
-    sub: hn.majorees > 0 ? 'maj. ' + hn.majorees + 'h' : ''
+    value: hnVal + 'h',
+    sub: ''
   });
 
   // Heures dimanche
-  var hd = recap.heuresDimanche || {};
+  var hdVal = recap.totalHeuresDimanche || 0;
   items.push({
     label: 'H. Dimanche',
-    value: (hd.total || 0) + 'h',
-    sub: hd.majorees > 0 ? 'maj. ' + hd.majorees + 'h' : ''
+    value: hdVal + 'h',
+    sub: ''
   });
 
   var html = '';
@@ -3467,6 +3467,9 @@ function _renderCumulHS(year, month) {
   var now = new Date();
   var currentMonthKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   var cumul = 0;
+  var cumulFeries = 0;
+  var cumulNuit = 0;
+  var cumulDimanche = 0;
   var details = [];
   var hasMissing = false;
   months.forEach(function(mk) {
@@ -3487,6 +3490,9 @@ function _renderCumulHS(year, month) {
     } else {
       var hs = _getRecapSupp(recap);
       cumul += hs;
+      cumulFeries += (recap.totalHeuresFeries || 0);
+      cumulNuit += (recap.totalHeuresNuit || 0);
+      cumulDimanche += (recap.totalHeuresDimanche || 0);
       details.push('<span style="' + (hs > 0 ? 'color:var(--gold)' : hs < 0 ? 'color:var(--red)' : '') + '">' + label + ' ' + (hs > 0 ? '+' : '') + hs + 'h</span>');
     }
   });
@@ -3496,7 +3502,7 @@ function _renderCumulHS(year, month) {
 
   var html = '<div class="recap-ecollab-grid" style="margin-bottom:10px">';
   html += '<div class="recap-ecollab-item">';
-  html += '<div class="recap-ecollab-item-label">Cumul heures</div>';
+  html += '<div class="recap-ecollab-item-label">Cumul H.Supp</div>';
   html += '<div class="recap-ecollab-item-value" style="color:' + (cumul > 0 ? 'var(--gold)' : cumul < 0 ? 'var(--red)' : '') + '">' + (cumul > 0 ? '+' : '') + cumul + 'h</div>';
   html += '<div class="recap-ecollab-item-sub">' + exLabel + '</div>';
   html += '</div>';
@@ -3505,6 +3511,26 @@ function _renderCumulHS(year, month) {
   html += '<div class="recap-ecollab-item-value" style="color:' + (cumulJours > 0 ? 'var(--gold)' : cumulJours < 0 ? 'var(--red)' : '') + '">' + (cumulJours > 0 ? '+' : '') + cumulJours + 'j</div>';
   html += '<div class="recap-ecollab-item-sub">base 7h/jour</div>';
   html += '</div>';
+  if (cumulFeries > 0 || cumulNuit > 0 || cumulDimanche > 0) {
+    if (cumulFeries > 0) {
+      html += '<div class="recap-ecollab-item">';
+      html += '<div class="recap-ecollab-item-label">Cumul Feries</div>';
+      html += '<div class="recap-ecollab-item-value">' + cumulFeries + 'h</div>';
+      html += '</div>';
+    }
+    if (cumulNuit > 0) {
+      html += '<div class="recap-ecollab-item">';
+      html += '<div class="recap-ecollab-item-label">Cumul Nuit</div>';
+      html += '<div class="recap-ecollab-item-value">' + cumulNuit + 'h</div>';
+      html += '</div>';
+    }
+    if (cumulDimanche > 0) {
+      html += '<div class="recap-ecollab-item">';
+      html += '<div class="recap-ecollab-item-label">Cumul Dim.</div>';
+      html += '<div class="recap-ecollab-item-value">' + cumulDimanche + 'h</div>';
+      html += '</div>';
+    }
+  }
   html += '</div>';
 
   html += '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;font-size:11px;color:var(--light)">';
