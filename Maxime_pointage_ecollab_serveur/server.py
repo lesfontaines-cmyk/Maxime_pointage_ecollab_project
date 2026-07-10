@@ -651,6 +651,48 @@ def test_login():
         return jsonify({"success": False, "error": f"Erreur serveur : {msg}"}), 500
 
 
+@app.route("/debug-model", methods=["POST"])
+def debug_model():
+    data = request.get_json(force=True)
+    email    = (data.get("email")    or "").strip()
+    password = (data.get("password") or "").strip()
+    url      = (data.get("url")      or "").strip()
+    mois = data.get("mois", 7)
+    annee = data.get("annee", 2026)
+    id_contrat = _extract_id_contrat(url)
+    try:
+        session, base = _ensure_http_session(email, password, url)
+        model = _get_vdp(session, base, id_contrat, mois, annee)
+        keys_info = {}
+        for k, v in model.items():
+            if k == 'Jours':
+                keys_info[k] = f"[{len(v)} items]"
+                if v:
+                    keys_info['Jours_0_keys'] = list(v[0].keys()) if isinstance(v[0], dict) else str(type(v[0]))
+            elif k == '_full_response':
+                keys_info[k] = f"[len={len(str(v))}]"
+            elif isinstance(v, (list, dict)):
+                keys_info[k] = json.dumps(v, default=str)[:500]
+            else:
+                keys_info[k] = str(v)[:300]
+        # Also try fetching the recap page HTML to find the endpoint
+        recap_endpoints = {}
+        for ep in [
+            f"/Paie/VariablePaieAPI/GetRecapitulatif?idContrat={id_contrat}&mois={mois:02d}&annee={annee}",
+            f"/Paie/VariablePaieAPI/GetRecapVDP?idContrat={id_contrat}&mois={mois:02d}&annee={annee}",
+            f"/Paie/RecapitulatifAPI/GetRecapitulatif?idContrat={id_contrat}&mois={mois:02d}&annee={annee}",
+        ]:
+            try:
+                r = session.get(f"{base}{ep}", timeout=10)
+                ct = r.headers.get('content-type', '')
+                recap_endpoints[ep] = {'status': r.status_code, 'ct': ct, 'body': r.text[:500]}
+            except Exception as e:
+                recap_endpoints[ep] = {'error': str(e)}
+        return jsonify({"keys": keys_info, "recap_endpoints": recap_endpoints})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/fetch-week", methods=["POST"])
 def fetch_week():
     data = request.get_json(force=True)
