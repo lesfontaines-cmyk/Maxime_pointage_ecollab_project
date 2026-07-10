@@ -865,70 +865,90 @@
   }
   .btn-enregistrer:hover { background: #8a6438; }
 
-  /* --- CLOTURE AUTO OVERLAY --- */
-  .auto-overlay {
+  /* --- CLOTURE OVERLAY --- */
+  .clo-overlay {
     position: fixed; inset: 0; z-index: 500;
+    background: rgba(20,16,8,0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: none; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .3s ease;
+  }
+  .clo-overlay.show { display: flex; opacity: 1; }
+  .clo-card {
+    width: 88%; max-width: 340px;
     background: var(--cream);
-    display: none;
-    justify-content: flex-start; align-items: center;
-    overflow-y: auto;
+    border-radius: 20px;
+    padding: 40px 28px 32px;
+    display: flex; flex-direction: column; align-items: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    transform: scale(0.92); transition: transform .35s cubic-bezier(.34,1.56,.64,1);
   }
-  .auto-overlay.show { display: flex; }
-  .auto-overlay-inner {
-    width: 100%; max-width: 420px;
-    margin: 0 auto;
-    padding: 32px 24px;
-    display: flex; flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    justify-content: center;
+  .clo-overlay.show .clo-card { transform: scale(1); }
+
+  .clo-ring-wrap {
+    position: relative; width: 120px; height: 120px; margin-bottom: 28px;
   }
-  .auto-title {
-    font-family: var(--serif); font-size: 24px;
-    color: var(--dark); margin-bottom: 6px; text-align: center;
+  .clo-ring-svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+  .clo-ring-bg { fill: none; stroke: var(--border); stroke-width: 5; }
+  .clo-ring-fill {
+    fill: none; stroke: var(--gold); stroke-width: 5;
+    stroke-linecap: round;
+    stroke-dasharray: 339.292;
+    stroke-dashoffset: 339.292;
+    transition: stroke-dashoffset .6s ease, stroke .3s ease;
   }
-  .auto-subtitle {
-    font-size: 13px; color: var(--gold); letter-spacing: 1px;
-    margin-bottom: 32px; text-align: center;
+  .clo-ring-fill.done { stroke: var(--green); }
+  .clo-ring-fill.error { stroke: var(--red); }
+  .clo-ring-center {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
   }
-  .auto-steps { width: 100%; display: flex; flex-direction: column; gap: 14px; }
-  .auto-step {
-    display: flex; align-items: center; gap: 14px;
-    background: var(--white); border: 1px solid var(--border);
-    border-radius: 4px; padding: 14px 16px;
+  .clo-ring-center .clo-spinner {
+    width: 32px; height: 32px; border: 3px solid var(--border);
+    border-top-color: var(--gold); border-radius: 50%;
+    animation: clo-spin .8s linear infinite;
   }
-  .auto-step.active  { border-color: var(--gold-lt); background: #fdf8f2; }
-  .auto-step.done    { border-color: #b8d0b8; background: #f0f5f0; }
-  .auto-step.error   { border-color: var(--red); background: #fdf0f0; }
-  .auto-step-icon { font-size: 22px; width: 30px; text-align: center; }
-  .auto-step-label { flex: 1; font-size: 14px; color: var(--dark); }
-  .auto-step-status { font-size: 18px; }
-  .auto-result {
-    margin-top: 24px; text-align: center; width: 100%;
-    font-size: 14px; color: var(--light); line-height: 1.5;
-    min-height: 40px;
+  @keyframes clo-spin { to { transform: rotate(360deg); } }
+  .clo-ring-center .clo-icon { font-size: 36px; animation: clo-pop .4s ease; }
+  @keyframes clo-pop { 0% { transform: scale(0); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+  .clo-step-label {
+    font-family: var(--sans); font-size: 15px; font-weight: 400;
+    color: var(--dark); letter-spacing: .5px; text-align: center;
+    margin-bottom: 6px; min-height: 22px;
+    transition: opacity .2s;
   }
-  .auto-result.ok  { color: var(--green); font-size: 16px; }
-  .auto-result.err { color: var(--red); }
-  .auto-progress-bar {
-    width: 100%; height: 6px; background: var(--border);
-    border-radius: 3px; margin-top: 24px; overflow: hidden;
+  .clo-subtitle {
+    font-size: 12px; color: var(--light); letter-spacing: .3px;
+    text-align: center; margin-bottom: 24px;
   }
-  .auto-progress-fill {
-    height: 100%; width: 0%; border-radius: 3px;
-    background: var(--gold);
-    transition: width 0.5s ease;
+
+  .clo-dots { display: flex; gap: 8px; margin-bottom: 24px; }
+  .clo-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border); transition: background .3s, transform .3s;
   }
-  .auto-progress-fill.done { background: var(--green); }
-  .auto-progress-fill.error { background: var(--red); }
-  .auto-btn-close {
-    margin-top: 24px; width: 100%; padding: 16px;
-    background: var(--gold); color: white; border: none;
-    border-radius: 4px; font-family: var(--sans); font-size: 13px;
-    font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
-    cursor: pointer; display: none;
+  .clo-dot.active { background: var(--gold); transform: scale(1.3); }
+  .clo-dot.done { background: var(--green); }
+  .clo-dot.error { background: var(--red); }
+
+  .clo-result {
+    text-align: center; font-size: 14px; color: var(--light);
+    line-height: 1.5; min-height: 20px; margin-bottom: 8px;
   }
-  .auto-btn-close.show { display: block; }
+  .clo-result.ok { color: var(--green); font-weight: 400; }
+  .clo-result.err { color: var(--red); }
+
+  .clo-btn-close {
+    width: 100%; padding: 14px; margin-top: 8px;
+    background: transparent; color: var(--light);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-family: var(--sans); font-size: 13px; font-weight: 400;
+    letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer; display: none; transition: all .2s;
+  }
+  .clo-btn-close:hover { border-color: var(--gold); color: var(--gold); }
 
   /* --- LOADING --- */
   .loading-cover {
@@ -1463,32 +1483,24 @@
 </div>
 
 <!-- OVERLAY CLOTURE -->
-<div class="auto-overlay" id="autoOverlay">
-<div class="auto-overlay-inner">
-  <div class="auto-title">Cloture</div>
-  <div class="auto-subtitle" id="autoSubtitle">--</div>
-  <div class="auto-steps">
-    <div class="auto-step" id="step1">
-      <div class="auto-step-icon">&#x1f510;</div>
-      <div class="auto-step-label">Connexion au serveur</div>
-      <div class="auto-step-status" id="step1s">&#x25CB;</div>
-    </div>
-    <div class="auto-step" id="step2">
-      <div class="auto-step-icon">&#x1f4e4;</div>
-      <div class="auto-step-label">Envoi des horaires</div>
-      <div class="auto-step-status" id="step2s">&#x25CB;</div>
-    </div>
-    <div class="auto-step" id="step3">
-      <div class="auto-step-icon">&#x2705;</div>
-      <div class="auto-step-label">Validation dans Ecollaboratrice</div>
-      <div class="auto-step-status" id="step3s">&#x25CB;</div>
-    </div>
+<div class="clo-overlay" id="cloOverlay">
+<div class="clo-card">
+  <div class="clo-ring-wrap">
+    <svg class="clo-ring-svg" viewBox="0 0 120 120">
+      <circle class="clo-ring-bg" cx="60" cy="60" r="54"/>
+      <circle class="clo-ring-fill" id="cloRingFill" cx="60" cy="60" r="54"/>
+    </svg>
+    <div class="clo-ring-center" id="cloRingCenter"><div class="clo-spinner"></div></div>
   </div>
-  <div class="auto-progress-bar"><div class="auto-progress-fill" id="autoProgressFill"></div></div>
-  <div class="auto-result" id="autoResult"></div>
-  <button class="auto-btn-close" id="autoBtnClose" onclick="closeAutoOverlay()">
-    Fermer
-  </button>
+  <div class="clo-step-label" id="cloStepLabel">Connexion...</div>
+  <div class="clo-subtitle" id="cloSubtitle">--</div>
+  <div class="clo-dots">
+    <div class="clo-dot" id="cloDot1"></div>
+    <div class="clo-dot" id="cloDot2"></div>
+    <div class="clo-dot" id="cloDot3"></div>
+  </div>
+  <div class="clo-result" id="cloResult"></div>
+  <button class="clo-btn-close" id="cloBtnClose" onclick="closeAutoOverlay()">Fermer</button>
 </div>
 </div>
 
@@ -3502,111 +3514,142 @@ function _renderRecapError(msg) {
 // ======================================
 // CLOTURE
 // ======================================
-function _setStep(n, state) {
-  var el=document.getElementById('step'+n);
-  var st=document.getElementById('step'+n+'s');
-  if(!el||!st) return;
-  el.className='auto-step '+state;
-  st.textContent = state==='active'?'⏳': state==='done'?'✅': state==='error'?'❌':'○';
+var _CLO_CIRC = 339.292;
+var _CLO_STEPS = ['Connexion au serveur...', 'Envoi des horaires...', 'Validation eCollaboratrice...'];
+
+function _cloSetRing(pct, cls) {
+  var fill = document.getElementById('cloRingFill');
+  if (!fill) return;
+  fill.style.strokeDashoffset = _CLO_CIRC * (1 - pct / 100);
+  fill.className.baseVal = 'clo-ring-fill' + (cls ? ' ' + cls : '');
 }
 
-function _setProgress(pct, cls) {
-  var fill = document.getElementById('autoProgressFill');
-  if(!fill) return;
-  fill.style.width = pct + '%';
-  fill.className = 'auto-progress-fill' + (cls ? ' '+cls : '');
+function _cloSetDot(n, state) {
+  var d = document.getElementById('cloDot' + n);
+  if (d) d.className = 'clo-dot' + (state ? ' ' + state : '');
+}
+
+function _cloSetLabel(txt) {
+  var el = document.getElementById('cloStepLabel');
+  if (el) el.textContent = txt;
+}
+
+function _cloSetCenter(html) {
+  var el = document.getElementById('cloRingCenter');
+  if (el) el.innerHTML = html;
 }
 
 function closeAutoOverlay() {
-  document.getElementById('autoOverlay').classList.remove('show');
+  var ov = document.getElementById('cloOverlay');
+  if (ov) ov.classList.remove('show');
 }
 
 function cloturerJournee() {
-  if(!CFG.email||!CFG.password){openSettings();toast('Configurez vos identifiants','error');return;}
-  if(!CFG.url){openSettings();toast('URL Ecollaboratrice manquante','error');return;}
-  if(!CFG.server){openSettings();toast('URL du serveur manquante','error');return;}
+  if (!CFG.email || !CFG.password) { openSettings(); toast('Configurez vos identifiants', 'error'); return; }
+  if (!CFG.url) { openSettings(); toast('URL Ecollaboratrice manquante', 'error'); return; }
+  if (!CFG.server) { openSettings(); toast('URL du serveur manquante', 'error'); return; }
 
   if (_isJourValideEcollab()) {
-    toast('Journee deja validee dans Ecollaboratrice','error');
+    toast('Journee deja validee dans Ecollaboratrice', 'error');
     return;
   }
 
-  var plages=S.plages
-    .filter(function(p){return p.debut&&p.fin;})
-    .map(function(p){var o={debut:p.debut,fin:p.fin}; if(p.tache) o.tache=p.tache; return o;});
+  var plages = S.plages
+    .filter(function(p) { return p.debut && p.fin; })
+    .map(function(p) { var o = { debut: p.debut, fin: p.fin }; if (p.tache) o.tache = p.tache; return o; });
 
   var pointageDate = S.date || todayISO();
   var dateParts = pointageDate.split('-');
-  var dateLabel = dateParts[2]+'/'+dateParts[1]+'/'+dateParts[0];
+  var dateLabel = dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0];
   var plagesLabel = plages.length
-    ? plages.map(function(p){return p.debut+' - '+p.fin;}).join(' | ')
+    ? plages.map(function(p) { return p.debut + ' – ' + p.fin; }).join('  |  ')
     : 'Journee vide';
 
-  document.getElementById('autoSubtitle').textContent = dateLabel + '  •  ' + plagesLabel;
-  document.getElementById('autoResult').textContent = '';
-  document.getElementById('autoResult').className = 'auto-result';
-  document.getElementById('autoBtnClose').style.display = 'none';
-  _setStep(1,''); _setStep(2,''); _setStep(3,'');
-  _setProgress(0,'');
-  document.getElementById('autoOverlay').classList.add('show');
+  // Reset overlay
+  document.getElementById('cloSubtitle').textContent = dateLabel + '  •  ' + plagesLabel;
+  document.getElementById('cloResult').textContent = '';
+  document.getElementById('cloResult').className = 'clo-result';
+  document.getElementById('cloBtnClose').style.display = 'none';
+  _cloSetRing(0, '');
+  _cloSetCenter('<div class="clo-spinner"></div>');
+  _cloSetLabel(_CLO_STEPS[0]);
+  _cloSetDot(1, ''); _cloSetDot(2, ''); _cloSetDot(3, '');
 
-  _setStep(1,'active');
-  _setProgress(15,'');
+  // Show overlay
+  var ov = document.getElementById('cloOverlay');
+  ov.style.display = 'flex';
+  requestAnimationFrame(function() { ov.classList.add('show'); });
+
+  _cloSetDot(1, 'active');
+  _cloSetRing(10, '');
 
   var _responded = false;
 
-  setTimeout(function(){
-    if(_responded) return;
-    _setStep(1,'done');
-    _setStep(2,'active');
-    _setProgress(45,'');
-  }, 1200);
+  setTimeout(function() {
+    if (_responded) return;
+    _cloSetDot(1, 'done');
+    _cloSetDot(2, 'active');
+    _cloSetLabel(_CLO_STEPS[1]);
+    _cloSetRing(35, '');
+  }, 1000);
 
-  setTimeout(function(){
-    if(_responded) return;
-    _setProgress(65,'');
-  }, 3000);
+  setTimeout(function() {
+    if (_responded) return;
+    _cloSetRing(55, '');
+  }, 2500);
 
-  setTimeout(function(){
-    if(_responded) return;
-    _setStep(2,'done');
-    _setStep(3,'active');
-    _setProgress(80,'');
-  }, 5000);
+  setTimeout(function() {
+    if (_responded) return;
+    _cloSetDot(2, 'done');
+    _cloSetDot(3, 'active');
+    _cloSetLabel(_CLO_STEPS[2]);
+    _cloSetRing(75, '');
+  }, 4000);
 
-  fetch(CFG.server+'/cloture', {
+  setTimeout(function() {
+    if (_responded) return;
+    _cloSetRing(88, '');
+  }, 6000);
+
+  fetch(CFG.server + '/cloture', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email: CFG.email, password: CFG.password, url: CFG.url,
       plages: plages, date: pointageDate, variables: S.variables || {}
     })
   })
-  .then(function(resp){ return resp.json(); })
-  .then(function(data){
+  .then(function(resp) { return resp.json(); })
+  .then(function(data) {
     _responded = true;
-    if(data.success) {
-      _setStep(1,'done'); _setStep(2,'done'); _setStep(3,'done');
-      _setProgress(100,'done');
-      document.getElementById('autoResult').textContent = 'Cloture reussie !';
-      document.getElementById('autoResult').className = 'auto-result ok';
-      S.cloture=true; _setCacheValide(); save(); render();
-      setTimeout(closeAutoOverlay, 2000);
+    if (data.success) {
+      _cloSetDot(1, 'done'); _cloSetDot(2, 'done'); _cloSetDot(3, 'done');
+      _cloSetRing(100, 'done');
+      _cloSetCenter('<span class="clo-icon">✓</span>');
+      _cloSetLabel('Cloture reussie');
+      document.getElementById('cloResult').textContent = dateLabel + '  •  ' + plagesLabel;
+      document.getElementById('cloResult').className = 'clo-result ok';
+      S.cloture = true; _setCacheValide(); save(); render();
+      setTimeout(closeAutoOverlay, 2200);
     } else {
-      _setStep(1,'done'); _setStep(2,'done'); _setStep(3,'error');
-      _setProgress(100,'error');
-      document.getElementById('autoResult').textContent = data.error||'Erreur inconnue';
-      document.getElementById('autoResult').className = 'auto-result err';
-      document.getElementById('autoBtnClose').style.display = 'block';
+      _cloSetDot(1, 'done'); _cloSetDot(2, 'done'); _cloSetDot(3, 'error');
+      _cloSetRing(100, 'error');
+      _cloSetCenter('<span class="clo-icon">✗</span>');
+      _cloSetLabel('Echec');
+      document.getElementById('cloResult').textContent = data.error || 'Erreur inconnue';
+      document.getElementById('cloResult').className = 'clo-result err';
+      document.getElementById('cloBtnClose').style.display = 'block';
     }
   })
-  .catch(function(e){
+  .catch(function(e) {
     _responded = true;
-    _setStep(1,'error'); _setStep(2,''); _setStep(3,'');
-    _setProgress(100,'error');
-    document.getElementById('autoResult').textContent = 'Erreur reseau : ' + (e.message||e);
-    document.getElementById('autoResult').className = 'auto-result err';
-    document.getElementById('autoBtnClose').style.display = 'block';
+    _cloSetDot(1, 'error');
+    _cloSetRing(100, 'error');
+    _cloSetCenter('<span class="clo-icon">✗</span>');
+    _cloSetLabel('Erreur reseau');
+    document.getElementById('cloResult').textContent = e.message || String(e);
+    document.getElementById('cloResult').className = 'clo-result err';
+    document.getElementById('cloBtnClose').style.display = 'block';
   });
 }
 
