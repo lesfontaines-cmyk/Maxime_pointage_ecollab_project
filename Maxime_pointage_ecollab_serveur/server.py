@@ -224,11 +224,37 @@ def _reset_http_session():
 
 
 def _get_vdp(session, base, id_contrat, mois, annee):
+    # Essayer d'abord l'endpoint salarié (compte manager)
     r = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPSalarie",
                     params={'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)},
                     timeout=30)
-    r.raise_for_status()
-    return r.json()
+    if r.ok:
+        data = r.json()
+        if isinstance(data, dict) and 'Jours' in data:
+            return data
+
+    # Fallback : endpoint groupé entreprise (compte salarié)
+    r2 = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPGroupeeEntreprise",
+                     params={'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)},
+                     timeout=30)
+    r2.raise_for_status()
+    data2 = r2.json()
+    # Réponse = liste de mois, chacun contenant Salaries[].Jours
+    if isinstance(data2, list) and len(data2) > 0:
+        item = data2[0]
+        salaries = item.get('Salaries') or []
+        for sal in salaries:
+            if sal.get('IdContrat') == id_contrat or len(salaries) == 1:
+                model = dict(sal)
+                model['Jours'] = sal.get('Jours', [])
+                model['NomSalarie'] = sal.get('NomPrenom', '')
+                model['_groupee'] = True
+                model['_annee'] = item.get('Annee')
+                model['_mois'] = item.get('Mois')
+                model['_idEntreprise'] = item.get('IdEntreprise')
+                model['_full_response'] = data2
+                return model
+    raise RuntimeError(f"Aucune donnée trouvée pour idContrat={id_contrat}")
 
 
 # ─── LECTURE ECOLLAB (API directe) ──────────────────────────────────────────
@@ -500,9 +526,16 @@ def cloture_direct(email, password, url, plages, date_str="", variables=None, _r
                                 if 'Quantite' in v: v['Quantite'] = indemnite_val
                         break
 
-        r = session.post(f"{base}/Paie/VariablePaieAPI/SaveVariablePaie",
+        if model.get('_groupee'):
+            save_url = f"{base}/Paie/VariablePaieAPI/SaveVariableDePaieGroupee"
+            save_body = model['_full_response']
+        else:
+            save_url = f"{base}/Paie/VariablePaieAPI/SaveVariablePaie"
+            save_body = {'model': model}
+
+        r = session.post(save_url,
                          params={'idContrat': id_contrat},
-                         json={'model': model},
+                         json=save_body,
                          headers={'Content-Type': 'application/json;charset=utf-8'},
                          timeout=60)
 
