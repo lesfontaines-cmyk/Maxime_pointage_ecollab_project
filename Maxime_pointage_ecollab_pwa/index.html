@@ -3550,173 +3550,27 @@ function cloturerJournee() {
 }
 
 function _envoyerClotureEnBackground(plages, pointageDate) {
-  var dateParts=pointageDate.split('-');
-  var dateLabel=dateParts[2]+'/'+dateParts[1]+'/'+dateParts[0];
-
-  // Étape 1 : vérifier si le jour est déjà validé via /fetch-week (timeout 8s)
-  fetch(CFG.server+'/fetch-week', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: pointageDate }),
-    signal: AbortSignal.timeout(8000)
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    if (data.success && data.days) {
-      // Mettre à jour le cache
-      var ck = 'eco_recap_' + (CFG.email||'') + '_' + pointageDate.slice(0,7);
-      try { localStorage.setItem(ck, JSON.stringify(data.days)); } catch(e) {}
-      var dayInfo = data.days[pointageDate];
-      if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
-        // Jour déjà validé — notifier l'utilisateur
-        _setCacheValide();
-        render();
-        sendNotification('Clôture impossible', 'Journée du ' + dateLabel + ' déjà validée dans Ecollaboratrice.', true);
-        return;
-      }
-    }
-    // Jour non validé — lancer la clôture
-    _lancerClotureBackground(plages, pointageDate, dateLabel);
-  })
-  .catch(function(e){
-    // Serveur inaccessible pour la vérification — lancer la clôture quand même
-    _lancerClotureBackground(plages, pointageDate, dateLabel);
-  });
-}
-
-function _lancerClotureBackground(plages, pointageDate, dateLabel) {
-  var job = {
-    id:        'current',
-    server:    CFG.server,
-    email:     CFG.email,
-    password:  CFG.password,
-    url:       CFG.url,
-    plages:    plages,
-    date:      pointageDate,
-    dateLabel: dateLabel,
-    variables: S.variables || {}
-  };
-
-  _pendingClotureJob = job;
-  _clotureDirectFetch(job);
-}
-
-var _pendingClotureJob = null;
-
-function _clotureDirectFetch(job) {
-  fetch(job.server+'/cloture', {
+  fetch(CFG.server+'/cloture', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
-      email: job.email, password: job.password, url: job.url,
-      plages: job.plages, date: job.date, variables: job.variables
-    }),
-    signal: AbortSignal.timeout(300000)
+      email: CFG.email, password: CFG.password, url: CFG.url,
+      plages: plages, date: pointageDate, variables: S.variables || {}
+    })
   })
-  .then(function(resp){return resp.json();})
+  .then(function(resp){ return resp.json(); })
   .then(function(data){
-    _pendingClotureJob = null;
     if(data.success) {
       S.cloture=true; _setCacheValide(); save(); render();
-      toast('Clôture réussie !', 'success', 5000);
+      toast('Cloture reussie !', 'success', 5000);
     } else {
-      toast('Échec clôture : ' + (data.error||'Erreur inconnue'), 'error', 8000);
+      toast('Echec cloture : ' + (data.error||'Erreur inconnue'), 'error', 8000);
     }
   })
   .catch(function(e){
-    console.log('[CLOTURE] Réponse HTTP non reçue:', e.message);
-    toast('Clôture en cours… Vérification dans 30 secondes.', 'info', 8000);
-    _clotureVerifyAfterDelay(job, 30000);
+    toast('Erreur reseau cloture : ' + (e.message||e), 'error', 8000);
   });
 }
-
-function _clotureVerifyAfterDelay(job, delay) {
-  setTimeout(function() {
-    if (!_pendingClotureJob) return;
-    toast('Vérification de la clôture…', 'info', 3000);
-    fetch(job.server + '/fetch-week', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ email: job.email, password: job.password, url: job.url, date: job.date }),
-      signal: AbortSignal.timeout(120000)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.success && data.days) {
-        var dayInfo = data.days[job.date];
-        if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
-          _pendingClotureJob = null;
-          S.cloture=true; _setCacheValide(); save(); render();
-          toast('Clôture réussie !', 'success', 5000);
-          return;
-        }
-      }
-      _pendingClotureJob = null;
-      toast('Clôture non confirmée — vérifiez dans Ecollaboratrice.', 'warning', 10000);
-    })
-    .catch(function() {
-      _pendingClotureJob = null;
-      toast('Impossible de vérifier la clôture — vérifiez dans Ecollaboratrice.', 'warning', 10000);
-    });
-  }, delay);
-}
-
-// Quand l'app revient au premier plan, vérifier si une clôture en attente a réussi
-document.addEventListener('visibilitychange', function() {
-  if (!document.hidden && _pendingClotureJob) {
-    var job = _pendingClotureJob;
-    fetch(job.server + '/fetch-week', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ email: job.email, password: job.password, url: job.url, date: job.date }),
-      signal: AbortSignal.timeout(60000)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.success && data.days) {
-        var dayInfo = data.days[job.date];
-        if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
-          _pendingClotureJob = null;
-          S.cloture=true; _setCacheValide(); save(); render();
-          toast('Clôture réussie !', 'success', 5000);
-        }
-      }
-    })
-    .catch(function() {});
-  }
-});
-
-// Recevoir les messages du SW (résultat push de clôture)
-if (navigator.serviceWorker) {
-  navigator.serviceWorker.addEventListener('message', function(event) {
-    if (event.data && event.data.type === 'CLOTURE_PUSH_RESULT') {
-      if (_pendingClotureJob) {
-        _pendingClotureJob = null;
-        if (event.data.success) {
-          S.cloture=true; _setCacheValide(); save(); render();
-          toast('Clôture réussie !', 'success', 5000);
-        } else {
-          toast('Échec clôture : ' + (event.data.body || 'Erreur'), 'error', 8000);
-        }
-      }
-    }
-  });
-}
-
-// Timeout : abandonner le job pending après 10 minutes
-var _clotureTimeoutId = null;
-var _origLancerCloture = _lancerClotureBackground;
-_lancerClotureBackground = function(plages, pointageDate, dateLabel) {
-  if (_clotureTimeoutId) clearTimeout(_clotureTimeoutId);
-  _origLancerCloture(plages, pointageDate, dateLabel);
-  _clotureTimeoutId = setTimeout(function() {
-    if (_pendingClotureJob) {
-      console.log('[CLOTURE] Timeout 10 min — abandon du job pending');
-      _pendingClotureJob = null;
-      _clotureTimeoutId = null;
-    }
-  }, 600000);
-};
 
 // ======================================
 // LOGIN / LOGOUT
