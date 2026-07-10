@@ -430,7 +430,13 @@ def cloture_direct(email, password, url, plages, date_str="", variables=None, _r
 
     try:
         session, base = _ensure_http_session(email, password, url)
-        model = _get_vdp(session, base, id_contrat, mois, annee)
+        try:
+            model = _get_vdp(session, base, id_contrat, mois, annee)
+        except Exception:
+            if _retry:
+                _reset_http_session()
+                return cloture_direct(email, password, url, plages, date_str, variables, _retry=False)
+            raise
 
         if not isinstance(model, dict) or 'Jours' not in model:
             return False, "Réponse GetVDPSalarie inattendue (pas de 'Jours')"
