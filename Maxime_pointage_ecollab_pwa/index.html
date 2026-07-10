@@ -3785,55 +3785,53 @@ function _backgroundRecapRefresh(force) {
   .then(function(data) {
     hideSyncIndicator(true);
     if (data.success && data.days) {
-      // Stocker les taches disponibles et rafraîchir les plages
-      if (data.taches && data.taches.length) {
-        TACHES = data.taches;
-        try { localStorage.setItem('eco_taches', JSON.stringify(TACHES)); } catch(e) {}
-        renderPointage();
-        renderPlages();
-      }
       try {
-        localStorage.setItem(cacheKey, JSON.stringify(data.days));
-        localStorage.setItem(syncKey, new Date().toISOString());
-      } catch(e) {}
-      // Stocker les données récap eCollab si présentes
-      if (data.recap) {
-        try {
-          var recapDataKey = 'eco_recap_data_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
-          localStorage.setItem(recapDataKey, JSON.stringify(data.recap));
-        } catch(e) {}
-      }
-      // Si le recap est affiché, mettre à jour l'affichage
-      var rc = document.getElementById('recapScreen');
-      if (rc && rc.style.display === 'block') {
-        renderRecapContent();
-      }
-      // Si le jour courant est déjà validé dans eCollab, bloquer et charger les plages
-      var todayStr = S.date || todayISO();
-      var dayInfo = data.days[todayStr];
-      if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
-        // Charger les plages eCollab dans l'état local
-        if (dayInfo.plages && dayInfo.plages.length > 0) {
-          S.plages = dayInfo.plages.map(function(p) { var o = {debut: p.debut, fin: p.fin}; if (p.tache) o.tache = p.tache; return o; });
+        if (data.taches && data.taches.length) {
+          TACHES = data.taches;
+          try { localStorage.setItem('eco_taches', JSON.stringify(TACHES)); } catch(e) {}
+          renderPointage();
+          renderPlages();
         }
-        S.cloture = true;
-        save();
-      } else if (S.cloture && dayInfo && !dayInfo.valideSalarie && !dayInfo.valideEntreprise) {
-        S.cloture = false;
-        save();
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(data.days));
+          localStorage.setItem(syncKey, new Date().toISOString());
+        } catch(e) {}
+        if (data.recap) {
+          try {
+            var recapDataKey = 'eco_recap_data_' + (CFG.email||'') + '_' + currentDate.slice(0,7);
+            localStorage.setItem(recapDataKey, JSON.stringify(data.recap));
+          } catch(e) {}
+        }
+        var rc = document.getElementById('recapScreen');
+        if (rc && rc.style.display === 'block') {
+          renderRecapContent();
+        }
+        var todayStr = S.date || todayISO();
+        var dayInfo = data.days[todayStr];
+        if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
+          if (dayInfo.plages && dayInfo.plages.length > 0) {
+            S.plages = dayInfo.plages.map(function(p) { var o = {debut: p.debut, fin: p.fin}; if (p.tache) o.tache = p.tache; return o; });
+          }
+          S.cloture = true;
+          save();
+        } else if (S.cloture && dayInfo && !dayInfo.valideSalarie && !dayInfo.valideEntreprise) {
+          S.cloture = false;
+          save();
+        }
+        updateUI();
+        renderPointage();
+        toast('Donnees eCollab synchronisees','success');
+        _updateLastSyncLabel();
+      } catch(renderErr) {
+        toast('Sync OK mais erreur affichage : ' + renderErr.message,'warning');
       }
-      // Mettre à jour toute l'UI (Horaires + Pointage)
-      updateUI();
-      renderPointage();
-      toast('Donnees eCollab synchronisees','success');
-      _updateLastSyncLabel();
     } else {
-      toast('Sync eCollab : aucune donnee','warning');
+      toast('Sync eCollab : ' + (data.error||'aucune donnee'),'warning');
     }
   })
-  .catch(function() {
+  .catch(function(e) {
     hideSyncIndicator(false);
-    toast('Sync eCollab echouee','error');
+    toast('Sync eCollab echouee : ' + (e.message||e),'error');
   });
 }
 
