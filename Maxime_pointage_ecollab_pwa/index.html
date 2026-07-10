@@ -3272,15 +3272,14 @@ function _renderRecapMonth(year, month, today, ecollabDays) {
       var dayName = joursCourts[dowIdx] + ' ' + pad(dt.getDate());
 
       var dayMin = info ? _calcDayMinutes(info.plages) : 0;
-      if (dayMin > 0) monthDaysWorked++;
-      weekTotalMin += dayMin;
-      monthTotalMin += dayMin;
-
       var isToday = (dayStr === today);
       var valideEntreprise = info && info.valideEntreprise;
       var valideSalarie = info && info.valideSalarie;
       var travaille = info && info.travaille;
       var isFuture = dayStr > today;
+
+      if (!isFuture && dayMin > 0) monthDaysWorked++;
+      if (!isFuture) { weekTotalMin += dayMin; monthTotalMin += dayMin; }
       var isProvisoire = travaille && isFuture && !valideSalarie && !valideEntreprise;
 
       var rowCls = 'recap-month-day-row';

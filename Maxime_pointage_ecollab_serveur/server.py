@@ -340,7 +340,7 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
             raise
 
         days = _model_to_days(model, mois, annee)
-        recap = _extract_recap(model, mois, annee)
+        recap = _extract_recap(model, mois, annee, dt)
         taches = _extract_taches(model)
 
         return True, days, [], recap, taches
@@ -383,28 +383,47 @@ def _model_day_hours(m):
     return total / 60.0
 
 
-def _extract_recap(model, mois, annee):
+def _extract_recap(model, mois, annee, today=None):
     mois = int(mois); annee = int(annee)
+    if today is None:
+        today = datetime.date.today()
     recap = {}
 
-    # Total des heures travaillees ce mois (pour affichage)
+    def _jour_date(j):
+        try:
+            return datetime.date(int(j['Annee']), int(j['Mois']), int(j['Jour']))
+        except Exception:
+            return None
+
+    # Total des heures travaillees ce mois (seulement jours passes)
     total_min = 0
+    jours_travailles = 0
     for j in (model.get('Jours') or []):
         try:
             if int(j.get('Mois', 0)) != mois or int(j.get('Annee', 0)) != annee:
                 continue
         except Exception:
             continue
+        jd = _jour_date(j)
+        if jd and jd > today:
+            continue
+        if not j.get('EstTravaille'):
+            continue
+        day_min = 0
         for h in (j.get('Horaires') or []):
             hd = h.get('HeureDebut'); hf = h.get('HeureFin')
             if hd is not None and hf is not None:
                 try:
                     hd = int(hd); hf = int(hf)
                     if hf > hd:
-                        total_min += (hf - hd)
+                        day_min += (hf - hd)
                 except Exception:
                     pass
+        if day_min > 0:
+            total_min += day_min
+            jours_travailles += 1
     recap['totalHeures'] = min_to_hhmm(total_min) if total_min else '0'
+    recap['joursTravailles'] = jours_travailles
 
     # --- Calcul H.SUPP selon l'algorithme eCollaboratrice ---
     all_jours = list(model.get('JoursBefore') or []) + list(model.get('Jours') or [])
@@ -452,6 +471,12 @@ def _extract_recap(model, mois, annee):
 
         lot_jours = all_jours[i:end + 1]
         lot_modeles = modeles[i:end + 1]
+
+        # Ne compter que les lots dont le 1er jour est passe
+        first_date = _jour_date(lot_jours[0])
+        if first_date and first_date > today:
+            i = end + 1
+            continue
 
         # Compter les semaines dans le lot
         nb_mondays = sum(1 for j in lot_jours if j.get('JourSemaine') == 1)
