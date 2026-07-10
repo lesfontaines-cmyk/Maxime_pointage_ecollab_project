@@ -166,9 +166,9 @@ def _ensure_http_session(email, password, url):
 
         s = _requests.Session()
         s.headers.update({
-            'User-Agent': 'Mozilla/5.0',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json, text/plain, */*',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
         })
         host = base.replace('https://', '').replace('http://', '')
         try: s.cookies.set('alert-rgpd', 'true', domain=host, path='/')
@@ -182,6 +182,26 @@ def _ensure_http_session(email, password, url):
 
         if not ok:
             raise RuntimeError(msg or "Echec de connexion")
+
+        # Visiter la page SaisieRapide pour établir le contexte de session complet
+        id_contrat = _extract_id_contrat(url)
+        today = datetime.date.today()
+        page_url = f"{base}/Paie/VariablePaie/SaisieRapide?"
+        if id_contrat:
+            page_url += f"idContrat={id_contrat}&"
+        page_url += f"mois={today.month:02d}&annee={today.year}"
+        try:
+            pr = s.get(page_url, timeout=15, headers={'Accept': 'text/html,application/xhtml+xml'})
+            print(f"  [session] Page SaisieRapide: {pr.status_code} ({len(pr.text)} octets)")
+            # Extraire le token anti-CSRF si présent
+            token_match = _re.search(r'__RequestVerificationToken["\s]*value="([^"]+)"', pr.text)
+            if token_match:
+                s.headers['__RequestVerificationToken'] = token_match.group(1)
+                print(f"  [session] Token CSRF trouvé")
+            # Garder le Referer pour les appels API suivants
+            s.headers['Referer'] = page_url
+        except Exception as e:
+            print(f"  [session] Visite page échouée (non bloquant): {e}")
 
         now2 = time.time()
         ttl = 25 * 60
