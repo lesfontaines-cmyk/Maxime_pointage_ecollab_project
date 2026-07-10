@@ -522,13 +522,18 @@ def cloture_direct(email, password, url, plages, date_str="", variables=None, _r
 
         if model.get('_groupee'):
             save_url = f"{base}/Paie/VariablePaieAPI/SaveVariableDePaieGroupee"
-            save_body = model['_full_response']
+            salarie_clean = {k: v for k, v in model.items() if not k.startswith('_')}
+            save_body = {
+                'salaries': [salarie_clean],
+                'mois': int(model.get('_mois', mois)),
+                'annee': int(model.get('_annee', annee)),
+                'terminer': False
+            }
         else:
             save_url = f"{base}/Paie/VariablePaieAPI/SaveVariablePaie"
             save_body = {'model': model}
 
         r = session.post(save_url,
-                         params={'idContrat': id_contrat},
                          json=save_body,
                          headers={'Content-Type': 'application/json;charset=utf-8'},
                          timeout=60)
@@ -538,7 +543,12 @@ def cloture_direct(email, password, url, plages, date_str="", variables=None, _r
             return cloture_direct(email, password, url, plages, date_str, variables, _retry=False)
 
         if not r.ok:
-            return False, f"Echec sauvegarde HTTP {r.status_code}"
+            detail = ""
+            try:
+                detail = r.text[:200]
+            except Exception:
+                pass
+            return False, f"Echec sauvegarde HTTP {r.status_code}: {detail}"
 
         resume = " | ".join(f"{p['debut']} → {p['fin']}" for p in plages) if plages else "Journée vide"
         date_label = f"{dt.day:02d}/{dt.month:02d}/{dt.year}"
