@@ -1917,7 +1917,6 @@ function loadStateWithServerSync() {
     var localHasActivity=S.history&&S.history.length>0;
     var remoteHasActivity=remote.history&&remote.history.length>0;
     if(!localHasActivity&&remoteHasActivity){
-      // Remote has data we don't have locally — adopt it
       S.plages=remote.plages||[];
       S.cloture=remote.cloture||false;
       S.enPoste=remote.enPoste||false;
@@ -1925,10 +1924,10 @@ function loadStateWithServerSync() {
       S.date=remote.date;
       _priseTsMs=remote.priseTsMs||null;
       if(S.enPoste&&!_priseTsMs) _priseTsMs=Date.now();
+      _deduplicatePlages();
       save(); render();
       toast('Pointage en cours recupere depuis un autre appareil','info');
     } else if(localHasActivity&&remoteHasActivity&&remote.history.length>S.history.length){
-      // Remote has more events — use it
       S.plages=remote.plages||[];
       S.cloture=remote.cloture||false;
       S.enPoste=remote.enPoste||false;
@@ -1936,6 +1935,7 @@ function loadStateWithServerSync() {
       S.date=remote.date;
       _priseTsMs=remote.priseTsMs||null;
       if(S.enPoste&&!_priseTsMs) _priseTsMs=Date.now();
+      _deduplicatePlages();
       save(); render();
       toast('Pointage mis a jour depuis un autre appareil','info');
     }
@@ -1962,6 +1962,7 @@ function refreshFromServer() {
       S.date=remote.date;
       _priseTsMs=remote.priseTsMs||null;
       if(S.enPoste&&!_priseTsMs) _priseTsMs=Date.now();
+      _deduplicatePlages();
       save(); render();
       toast('Pointage synchronise depuis un autre appareil','success');
     }
@@ -2435,13 +2436,18 @@ function selectCalendarDate(iso) {
 function setDate(v) {
   // Save current day first
   save();
-  // Switch day
+  // Switch day — reset ALL state, not just plages
   S.date=v;
   S.plages=[];
   S.cloture=false;
+  S.enPoste=false;
+  S.history=[];
+  S.variables={astreinte:0,indemniteEloignement:0};
+  _priseTsMs=null;
   // Try to load existing data for that day
   loadState();
   render();
+  renderPointage();
 }
 
 function updateDateDisplay() {
@@ -2714,9 +2720,10 @@ function nowHHMM() { var d=new Date(); return pad(d.getHours())+':'+pad(d.getMin
 function arrondiSup(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.ceil((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
 function arrondiInf(h) { if(!h)return''; var p=h.split(':').map(Number); var t=Math.floor((p[0]*60+p[1])/15)*15; return pad(Math.floor(t/60)%24)+':'+pad(t%60); }
 
-// Supprimer les plages en doublon (même debut+fin)
+// Supprimer les plages en doublon ou qui se chevauchent
 function _deduplicatePlages() {
   if (!S.plages || S.plages.length <= 1) return;
+  // 1) Exact duplicates
   var seen = {};
   S.plages = S.plages.filter(function(p) {
     var key = (p.debut||'') + '|' + (p.fin||'');
@@ -2724,6 +2731,22 @@ function _deduplicatePlages() {
     seen[key] = true;
     return true;
   });
+  // 2) Remove plages fully contained in another (overlapping)
+  if (S.plages.length > 2) {
+    var toMin = function(t) { if(!t) return -1; var p=t.split(':'); return parseInt(p[0],10)*60+parseInt(p[1],10); };
+    S.plages = S.plages.filter(function(a, i) {
+      if (!a.debut || !a.fin) return true;
+      var aS = toMin(a.debut), aE = toMin(a.fin);
+      for (var j = 0; j < S.plages.length; j++) {
+        if (j === i) continue;
+        var b = S.plages[j];
+        if (!b.debut || !b.fin) continue;
+        var bS = toMin(b.debut), bE = toMin(b.fin);
+        if (bS <= aS && bE >= aE && (bS < aS || bE > aE)) return false;
+      }
+      return true;
+    });
+  }
 }
 
 // Vérifier si le jour a changé et réinitialiser si besoin
@@ -3939,6 +3962,7 @@ function _backgroundRecapRefresh(force) {
         if (dayInfo && (dayInfo.valideSalarie || dayInfo.valideEntreprise)) {
           if (dayInfo.plages && dayInfo.plages.length > 0) {
             S.plages = dayInfo.plages.map(function(p) { var o = {debut: p.debut, fin: p.fin}; if (p.tache) o.tache = p.tache; return o; });
+            _deduplicatePlages();
           }
           S.cloture = true;
           save();
@@ -3946,6 +3970,7 @@ function _backgroundRecapRefresh(force) {
           S.cloture = false;
           save();
         }
+        _deduplicatePlages();
         updateUI();
         renderPointage();
         toast('Donnees eCollab synchronisees','success');
