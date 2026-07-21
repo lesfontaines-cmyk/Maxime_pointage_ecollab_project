@@ -2776,8 +2776,10 @@ function _checkDayChange() {
 function pointePrise() {
   _checkDayChange();
   var h=nowHHMM();
-  // Premier pointage auto : vider les plages par defaut
-  if(!S.history.length) S.plages=[];
+  // Premier pointage : ne vider que les plages vides (templates), garder les saisies manuelles
+  if(!S.history.length) {
+    S.plages = S.plages.filter(function(p) { return p.debut || p.fin; });
+  }
   // Dédupliquer les plages (protection contre les doublons)
   _deduplicatePlages();
   // Chercher une plage existante sans debut (créée manuellement)
