@@ -3701,7 +3701,7 @@ function cloturerJournee() {
       _cloSetLabel('Cloture reussie');
       document.getElementById('cloResult').textContent = dateLabel + '  •  ' + plagesLabel;
       document.getElementById('cloResult').className = 'clo-result ok';
-      S.cloture = true; _setCacheValide(); save(); render();
+      S.cloture = true; _setCacheValide(); save(); render(); renderPointage();
       setTimeout(closeAutoOverlay, 2200);
     } else {
       _cloSetDot(1, 'done'); _cloSetDot(2, 'done'); _cloSetDot(3, 'error');
