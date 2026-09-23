@@ -2486,7 +2486,18 @@ function addPlage() { S.plages.push({debut:'',fin:''}); _syncEnPosteFromPlages()
 function removePlage(i) {
   S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); renderPointage(); save();
 }
-function setField(i,f,v) { S.plages[i][f] = (f==='tache' && v) ? parseInt(v,10) : v; _syncEnPosteFromPlages(); render(); renderPointage(); save(); }
+function setField(i,f,v) {
+  if (f === 'tache') {
+    S.plages[i][f] = v ? parseInt(v,10) : v;
+  } else if (f === 'debut') {
+    S.plages[i][f] = arrondiSup(v);
+  } else if (f === 'fin') {
+    S.plages[i][f] = arrondiInf(v);
+  } else {
+    S.plages[i][f] = v;
+  }
+  _syncEnPosteFromPlages(); render(); renderPointage(); save();
+}
 
 function genTacheOptions(selected) {
   var html = '<option value="">— Aucune —</option>';
