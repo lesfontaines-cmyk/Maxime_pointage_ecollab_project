@@ -2487,15 +2487,18 @@ function removePlage(i) {
   S.plages.splice(i,1); _syncEnPosteFromPlages(); render(); renderPointage(); save();
 }
 function setField(i,f,v) {
+  var newVal;
   if (f === 'tache') {
-    S.plages[i][f] = v ? parseInt(v,10) : v;
+    newVal = v ? parseInt(v,10) : v;
   } else if (f === 'debut') {
-    S.plages[i][f] = arrondiSup(v);
+    newVal = arrondiSup(v);
   } else if (f === 'fin') {
-    S.plages[i][f] = arrondiInf(v);
+    newVal = arrondiInf(v);
   } else {
-    S.plages[i][f] = v;
+    newVal = v;
   }
+  if (S.plages[i][f] === newVal) return;
+  S.plages[i][f] = newVal;
   _syncEnPosteFromPlages(); render(); renderPointage(); save();
 }
 
@@ -2529,11 +2532,11 @@ function renderPlages() {
       '</div>'+
       '<div class="time-row">'+
         '<span class="time-row-label">Debut</span>'+
-        '<input type="time" class="time-input-native" value="'+(p.debut||'')+'" step="900" onchange="setField('+i+',\'debut\',this.value)"'+disabledAttr+'>'+
+        '<input type="time" class="time-input-native" value="'+(p.debut||'')+'" step="900" onchange="setField('+i+',\'debut\',this.value)" onblur="setField('+i+',\'debut\',this.value)"'+disabledAttr+'>'+
       '</div>'+
       '<div class="time-row">'+
         '<span class="time-row-label">Fin</span>'+
-        '<input type="time" class="time-input-native" value="'+(p.fin||'')+'" step="900" onchange="setField('+i+',\'fin\',this.value)"'+disabledAttr+'>'+
+        '<input type="time" class="time-input-native" value="'+(p.fin||'')+'" step="900" onchange="setField('+i+',\'fin\',this.value)" onblur="setField('+i+',\'fin\',this.value)"'+disabledAttr+'>'+
       '</div>'+
       tacheRow+
     '</div>';
