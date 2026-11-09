@@ -5,7 +5,7 @@
 // Ce seul changement declenche le cycle complet de mise a jour.
 // =============================================
 
-var APP_VERSION = '5.3.8';
+var APP_VERSION = '5.3.9';
 var CACHE_NAME  = 'pointage-cm-v' + APP_VERSION;
 
 var PRECACHE_FILES = [
@@ -19,10 +19,14 @@ var PRECACHE_FILES = [
 
 // ----- INSTALL -----
 // Pre-cache les fichiers essentiels, puis activation immediate (skipWaiting).
+// cache:'reload' contourne le cache HTTP du navigateur : sans ca, le nouveau
+// cache pouvait etre rempli avec l'ancien index.html.
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(PRECACHE_FILES);
+      return cache.addAll(PRECACHE_FILES.map(function(url) {
+        return new Request(url, { cache: 'reload' });
+      }));
     })
   );
   self.skipWaiting();
@@ -51,24 +55,20 @@ self.addEventListener('fetch', function(event) {
   // Ignorer les requetes non-GET
   if (request.method !== 'GET') return;
 
-  // Navigations HTML → stale-while-revalidate
+  // Navigations HTML → reseau d'abord (toujours la derniere version deployee),
+  // cache seulement si hors-ligne.
   if (request.mode === 'navigate') {
     event.respondWith(
       caches.open(CACHE_NAME).then(function(cache) {
-        return cache.match(request).then(function(cachedResponse) {
-          // Toujours fetch en arriere-plan pour mettre a jour le cache
-          var fetchPromise = fetch(request).then(function(networkResponse) {
-            if (networkResponse && networkResponse.status === 200) {
-              cache.put(request, networkResponse.clone());
-            }
-            return networkResponse;
-          }).catch(function() {
-            return null;
+        return fetch(request, { cache: 'no-cache' }).then(function(networkResponse) {
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(request, networkResponse.clone());
+          }
+          return networkResponse;
+        }).catch(function() {
+          return cache.match(request).then(function(cachedResponse) {
+            return cachedResponse || cache.match('./index.html');
           });
-
-          // Retourne le cache immediatement si disponible,
-          // sinon attend le reseau
-          return cachedResponse || fetchPromise;
         });
       })
     );
