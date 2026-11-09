@@ -3020,31 +3020,52 @@ function _getTargetMonth() {
 }
 
 function _fetchMonthIfNeeded() {
-  var t = _getTargetMonth();
-  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + t.key;
-  if (localStorage.getItem(cacheKey)) return;
+  _fetchMonthKey(_getTargetMonth().key, false);
+}
+
+// Mois (YYYY-MM) couverts par la semaine affichee dans la vue semaine
+function _getTargetWeekDays() {
+  var baseDate = new Date((S.date || todayISO()) + 'T12:00:00');
+  baseDate.setDate(baseDate.getDate() + (_recapWeekOffset * 7));
+  return getWeekDays(localISO(baseDate));
+}
+function _displayedMonthKeys() {
+  if (_recapView !== 'week') return [_getTargetMonth().key];
+  var wd = _getTargetWeekDays();
+  var keys = [wd[0].slice(0,7)];
+  if (wd[6].slice(0,7) !== keys[0]) keys.push(wd[6].slice(0,7));
+  return keys;
+}
+
+// Charge les jours d'un mois depuis eCollab (si absent du cache, ou si force)
+var _monthFetchInFlight = {};
+function _fetchMonthKey(mk, force) {
+  var cacheKey = 'eco_recap_' + (CFG.email||'') + '_' + mk;
+  if (!force && localStorage.getItem(cacheKey)) return;
+  if (_monthFetchInFlight[mk]) return;
   var server = CFG.server || localStorage.getItem('eco_server') || '';
   if (!server || !CFG.email || !CFG.password || !CFG.url) return;
-  var dateStr = t.key + '-15';
+  _monthFetchInFlight[mk] = true;
   fetch(server + '/fetch-week', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: dateStr })
+    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url, date: mk + '-15' })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success && data.days) {
       try {
         localStorage.setItem(cacheKey, JSON.stringify(data.days));
-        localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + t.key, new Date().toISOString());
+        localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + mk, new Date().toISOString());
       } catch(e) {}
       if (data.recap) {
-        try { localStorage.setItem('eco_recap_data_' + (CFG.email||'') + '_' + t.key, JSON.stringify(data.recap)); } catch(e) {}
+        try { localStorage.setItem('eco_recap_data_' + (CFG.email||'') + '_' + mk, JSON.stringify(data.recap)); } catch(e) {}
       }
       renderRecapContent();
     }
   })
-  .catch(function() {});
+  .catch(function() {})
+  .then(function() { delete _monthFetchInFlight[mk]; });
 }
 
 function renderRecap(forceRefresh) {
@@ -3073,6 +3094,11 @@ function renderRecap(forceRefresh) {
     document.getElementById('recapWeekTotal').textContent = '--';
     document.getElementById('recapWeekDetail').innerHTML = '';
   }
+
+  // Actualiser aussi le(s) mois affiche(s) s'ils different du mois courant
+  _displayedMonthKeys().forEach(function(mk) {
+    if (mk !== currentDate.slice(0,7)) _fetchMonthKey(mk, !!forceRefresh);
+  });
 
   // Toujours rafraîchir depuis le serveur (le cache est juste pour affichage immédiat)
   var refreshBtn = document.getElementById('recapRefreshBtn');
@@ -3131,11 +3157,23 @@ function renderRecapContent() {
 
   if (_recapView === 'week') {
     // Appliquer l'offset semaine
-    var baseDate = new Date(currentDate + 'T12:00:00');
-    baseDate.setDate(baseDate.getDate() + (_recapWeekOffset * 7));
-    var targetDate = localISO(baseDate);
-    var weekDays = getWeekDays(targetDate);
+    var weekDays = _getTargetWeekDays();
+    var targetDate = weekDays[0];
     var weekNum = getISOWeekNumber(targetDate);
+
+    // La semaine affichee peut etre dans un autre mois (ou a cheval sur deux) :
+    // fusionner les jours de chaque mois concerne, et charger ceux absents du cache.
+    var weekData = {};
+    _displayedMonthKeys().forEach(function(mk) {
+      var monthDays = null;
+      try { monthDays = JSON.parse(localStorage.getItem('eco_recap_' + (CFG.email||'') + '_' + mk)); } catch(e) {}
+      if (monthDays) {
+        Object.keys(monthDays).forEach(function(k) { weekData[k] = monthDays[k]; });
+      } else {
+        _fetchMonthKey(mk, false);
+      }
+    });
+    cached = weekData;
     var joursFr = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 
     var monDate = new Date(weekDays[0] + 'T12:00:00');
