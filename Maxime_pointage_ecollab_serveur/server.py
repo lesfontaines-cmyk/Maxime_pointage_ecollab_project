@@ -383,6 +383,11 @@ def _model_day_hours(m):
     return total / 60.0
 
 
+def _jour_cloture(j):
+    """Un jour est clôturé s'il est validé par le salarié ou l'entreprise."""
+    return bool(j.get('ValideeParSalarie') or j.get('ValideeParEntreprise'))
+
+
 def _extract_recap(model, mois, annee, today=None):
     mois = int(mois); annee = int(annee)
     if today is None:
@@ -395,7 +400,7 @@ def _extract_recap(model, mois, annee, today=None):
         except Exception:
             return None
 
-    # Total des heures travaillees ce mois (seulement jours passes)
+    # Total des heures travaillees ce mois (seulement jours passes et clotures)
     total_min = 0
     jours_travailles = 0
     for j in (model.get('Jours') or []):
@@ -407,7 +412,7 @@ def _extract_recap(model, mois, annee, today=None):
         jd = _jour_date(j)
         if jd and jd > today:
             continue
-        if not j.get('EstTravaille'):
+        if not j.get('EstTravaille') or not _jour_cloture(j):
             continue
         day_min = 0
         for h in (j.get('Horaires') or []):
@@ -472,9 +477,14 @@ def _extract_recap(model, mois, annee, today=None):
         lot_jours = all_jours[i:end + 1]
         lot_modeles = modeles[i:end + 1]
 
-        # Ne compter que les lots dont le 1er jour est passe
-        first_date = _jour_date(lot_jours[0])
-        if first_date and first_date > today:
+        # Ne compter que les lots entierement passes dont tous les jours
+        # travailles sont clotures (sinon l'ecart d'heures supp. serait faux)
+        last_date = _jour_date(lot_jours[-1])
+        lot_incomplet = (
+            (last_date and last_date > today) or
+            any(j.get('EstTravaille') and not _jour_cloture(j) for j in lot_jours)
+        )
+        if lot_incomplet:
             i = end + 1
             continue
 
@@ -536,7 +546,7 @@ def _extract_recap(model, mois, annee, today=None):
                 continue
         except Exception:
             continue
-        if not j.get('EstTravaille'):
+        if not j.get('EstTravaille') or not _jour_cloture(j):
             continue
         h_jour = _day_hours(j)
         if j.get('EstFerie') and not j.get('FerieChome'):

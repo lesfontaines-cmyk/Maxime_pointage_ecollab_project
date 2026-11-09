@@ -3197,7 +3197,7 @@ function _fmtMinutes(min) {
 }
 
 function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
-  var weekTotalMin = 0, daysWorked = 0;
+  var weekTotalMin = 0, daysWorked = 0, weekHasOpen = false;
   var html = '';
 
   for (var i = 0; i < 7; i++) {
@@ -3216,8 +3216,14 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
     }
 
     var dayTotalMin = _calcDayMinutes(plages);
-    weekTotalMin += dayTotalMin;
-    if (dayTotalMin > 0) daysWorked++;
+    var dayClosed = !!(valideSalarie || valideEntreprise);
+    // Les compteurs ne comptent que les heures deja clôturées
+    if (dayClosed) {
+      weekTotalMin += dayTotalMin;
+      if (dayTotalMin > 0) daysWorked++;
+    } else if (travaille || dayTotalMin > 0) {
+      weekHasOpen = true;
+    }
 
     var dt = new Date(dateStr + 'T12:00:00');
     var dateLabel = joursFr[i] + ' ' + pad(dt.getDate()) + '/' + pad(dt.getMonth()+1);
@@ -3267,7 +3273,9 @@ function _renderRecapDays(weekDays, today, joursFr, ecollabDays) {
   var hsValEl = document.getElementById('recapWeekHSValue');
   if (hsEl && hsValEl) {
     var diffMin = weekTotalMin - (35 * 60);
-    if (weekTotalMin > 0) {
+    // Heures sup. seulement pour une semaine terminee et entierement clôturée
+    var weekDone = !weekHasOpen && weekDays[6] <= today;
+    if (weekTotalMin > 0 && weekDone) {
       hsEl.style.display = 'flex';
       var sign = diffMin >= 0 ? '+' : '-';
       var absDiff = Math.abs(diffMin);
@@ -3317,8 +3325,10 @@ function _renderRecapMonth(year, month, today, ecollabDays) {
       var travaille = info && info.travaille;
       var isFuture = dayStr > today;
 
-      if (!isFuture && dayMin > 0) monthDaysWorked++;
-      if (!isFuture) { weekTotalMin += dayMin; monthTotalMin += dayMin; }
+      // Les compteurs ne comptent que les heures deja clôturées
+      var isClosed = !!(valideSalarie || valideEntreprise);
+      if (isClosed && dayMin > 0) monthDaysWorked++;
+      if (isClosed) { weekTotalMin += dayMin; monthTotalMin += dayMin; }
       var isProvisoire = travaille && isFuture && !valideSalarie && !valideEntreprise;
 
       var rowCls = 'recap-month-day-row';
