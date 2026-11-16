@@ -3973,7 +3973,9 @@ function _backgroundRecapRefresh(force) {
 
   if (!force) {
     var heure = new Date().getHours();
-    if (heure < 7 || heure >= 19) return;
+    // Hors 7h-19h, on synchronise quand meme tant que la liste des taches est vide
+    // (ex. premiere connexion le soir) : sinon le select Tache reste sans choix.
+    if ((heure < 7 || heure >= 19) && TACHES.length) return;
     if (_syncActive) return;
     if ((Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
     try {

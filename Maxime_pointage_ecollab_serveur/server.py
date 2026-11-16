@@ -193,6 +193,8 @@ def _ensure_http_session(email, password, url):
         try:
             pr = s.get(page_url, timeout=15, headers={'Accept': 'text/html,application/xhtml+xml'})
             print(f"  [session] Page SaisieRapide: {pr.status_code} ({len(pr.text)} octets)")
+            # Conservée pour y chercher le catalogue des tâches (cf. _taches_from_page)
+            s._saisie_html = pr.text if pr.ok else ''
             # Extraire le token anti-CSRF si présent
             token_match = _re.search(r'__RequestVerificationToken["\s]*value="([^"]+)"', pr.text)
             if token_match:
@@ -223,11 +225,11 @@ def _reset_http_session():
     _http_session_key = None
 
 
-def _get_vdp(session, base, id_contrat, mois, annee):
+def _get_vdp(session, base, id_contrat, mois, annee, timeout=30):
     # Essayer d'abord l'endpoint salarié (compte manager)
     r = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPSalarie",
                     params={'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)},
-                    timeout=30)
+                    timeout=timeout)
     if r.ok:
         data = r.json()
         if isinstance(data, dict) and 'Jours' in data:
@@ -236,7 +238,7 @@ def _get_vdp(session, base, id_contrat, mois, annee):
     # Fallback : endpoint groupé entreprise (compte salarié)
     r2 = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPGroupeeEntreprise",
                      params={'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)},
-                     timeout=30)
+                     timeout=timeout)
     r2.raise_for_status()
     data2 = r2.json()
     # Réponse = liste de mois, chacun contenant Salaries[].Jours
@@ -341,7 +343,7 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
 
         days = _model_to_days(model, mois, annee)
         recap = _extract_recap(model, mois, annee, dt)
-        taches = _extract_taches(model)
+        taches = _get_taches(session, base, email, id_contrat, model, mois, annee)
 
         return True, days, [], recap, taches
 
@@ -561,17 +563,182 @@ def _extract_recap(model, mois, annee, today=None):
     return recap
 
 
-def _extract_taches(model):
-    taches = []
-    seen = set()
-    for j in (model.get('Jours') or []):
-        for h in (j.get('Horaires') or []):
-            tid = h.get('IdTache')
-            tname = h.get('LibelleTache') or h.get('Libelle') or ''
-            if tid and tid not in seen:
-                seen.add(tid)
-                if tname:
-                    taches.append({'id': tid, 'label': tname})
+# ─── TÂCHES ──────────────────────────────────────────────────────────────────
+# Les horaires ne portent que les tâches déjà saisies : un salarié qui n'en a
+# encore utilisé aucune ce mois-ci aurait une liste vide. On combine donc :
+#   1. tout catalogue de tâches présent dans la réponse eCollab ou dans la page
+#      SaisieRapide (données intégrées, ou endpoint « …Tache… » qu'elle appelle) ;
+#   2. les tâches déjà utilisées ce mois-ci ;
+#   3. celles utilisées les mois précédents (mémorisées quelques heures).
+_TACHE_ID_KEYS = ('IdTache', 'Id', 'id', 'Value', 'value')
+_TACHE_LABEL_KEYS = ('LibelleTache', 'Libelle', 'libelle', 'Label', 'label', 'Nom', 'nom',
+                     'Designation', 'Intitule', 'Text', 'text')
+_TACHES_HISTO_MOIS = 3
+_TACHES_HISTO_TTL = 6 * 3600
+_taches_histo_cache = {}  # (email, base, id_contrat) -> (expiration, [taches])
+_TACHE_ARRAY_RE = _re.compile(r'''["']?\w*[Tt]ache\w*["']?\s*[:=]\s*\[''')
+_TACHE_URL_RE = _re.compile(r'''["'](?:https?://[^/"']+)?(/[\w/]*[Tt]ache\w*)''')
+_TACHE_URL_LECTURE = ('get', 'list', 'load', 'charg', 'recup')
+
+
+def _tache_from_obj(o, id_keys=_TACHE_ID_KEYS, label_keys=_TACHE_LABEL_KEYS):
+    """{'id': int, 'label': str} depuis un objet tâche eCollab, sinon None."""
+    if not isinstance(o, dict):
+        return None
+    tid = None
+    for k in id_keys:
+        v = o.get(k)
+        if isinstance(v, bool):
+            continue
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            continue
+        if v > 0:
+            tid = v
+            break
+    label = next((o[k].strip() for k in label_keys
+                  if isinstance(o.get(k), str) and o[k].strip()), '')
+    return {'id': tid, 'label': label} if tid and label else None
+
+
+def _collect_taches(obj, out, skip=(), depth=0):
+    """Ajoute à `out` les tâches trouvées dans une réponse eCollab : listes sous
+    une clé contenant « tache » (catalogue) et horaires portant un IdTache."""
+    if depth > 10:
+        return
+    if isinstance(obj, list):
+        for it in obj:
+            _collect_taches(it, out, skip, depth + 1)
+        return
+    if not isinstance(obj, dict):
+        return
+    if obj.get('IdTache'):
+        t = _tache_from_obj(obj, ('IdTache',), ('LibelleTache', 'Libelle'))
+        if t:
+            out.append(t)
+    for k, v in obj.items():
+        if k in skip or not isinstance(v, (list, dict)):
+            continue
+        if 'tache' in str(k).lower():
+            for it in (v if isinstance(v, list) else [v] + list(v.values())):
+                t = _tache_from_obj(it)
+                if t:
+                    out.append(t)
+        _collect_taches(v, out, skip, depth + 1)
+
+
+def _collect_model_taches(model, out):
+    # Les autres salariés de la réponse groupée sont ignorés : leurs tâches ne
+    # sont pas forcément ouvertes à ce contrat.
+    _collect_taches(model, out, skip=('_full_response',))
+    _collect_taches(model.get('_full_response'), out, skip=('Salaries',))
+
+
+def _dedupe_taches(taches):
+    seen, out = set(), []
+    for t in taches:
+        if t['id'] not in seen:
+            seen.add(t['id'])
+            out.append(t)
+    return sorted(out, key=lambda t: t['label'].lower())
+
+
+def _json_array_at(text, start):
+    """Décode le tableau JSON qui commence à text[start] ('['), sinon None."""
+    depth, in_str, esc = 0, None, False
+    for i in range(start, min(len(text), start + 200000)):
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == '\\':
+                esc = True
+            elif c == in_str:
+                in_str = None
+        elif c in '"\'':
+            in_str = c
+        elif c == '[':
+            depth += 1
+        elif c == ']':
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start:i + 1])
+                except ValueError:
+                    return None
+    return None
+
+
+def _taches_from_page(session, base, id_contrat, mois, annee):
+    """Catalogue des tâches tiré de la page SaisieRapide, mémorisé sur la session."""
+    cached = getattr(session, '_taches_page', None)
+    if cached is not None:
+        return cached
+    html = getattr(session, '_saisie_html', '') or ''
+    found = []
+    for m in _TACHE_ARRAY_RE.finditer(html):
+        arr = _json_array_at(html, m.end() - 1)
+        if arr:
+            _collect_taches({'taches': arr}, found)
+    if not found:
+        urls = []
+        for u in _TACHE_URL_RE.findall(html):
+            action = u.rstrip('/').rsplit('/', 1)[-1].lower()
+            if u not in urls and action.startswith(_TACHE_URL_LECTURE):
+                urls.append(u)
+        if urls:
+            print(f"  [taches] Endpoints repérés dans la page : {urls[:5]}")
+        for u in urls[:3]:
+            try:
+                r = session.get(base + u, timeout=10, params={
+                    'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)})
+                if r.ok and 'json' in r.headers.get('content-type', ''):
+                    _collect_taches({'taches': r.json()}, found)
+            except Exception as e:
+                print(f"  [taches] {u} : {e}")
+    session._taches_page = _dedupe_taches(found)
+    print(f"  [taches] Catalogue page SaisieRapide : {len(session._taches_page)} tâche(s)")
+    return session._taches_page
+
+
+def _taches_historique(session, base, email, id_contrat, mois, annee):
+    """Tâches utilisées les mois précédents, mémorisées par utilisateur et contrat."""
+    key = (email, base, id_contrat)
+    hit = _taches_histo_cache.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    found, ttl, t0 = [], _TACHES_HISTO_TTL, time.time()
+    for k in range(1, _TACHES_HISTO_MOIS + 1):
+        if time.time() - t0 > 20:
+            break
+        m, a = mois - k, annee
+        if m < 1:
+            m, a = m + 12, a - 1
+        try:
+            _collect_model_taches(_get_vdp(session, base, id_contrat, m, a, timeout=10), found)
+        except RuntimeError:
+            break  # pas de données ce mois-là (ex. avant l'embauche) : rien avant non plus
+        except Exception as e:
+            print(f"  [taches] Historique {m:02d}/{a} indisponible : {e}")
+            ttl = 10 * 60  # erreur réseau/HTTP : réessayer plus tôt
+            break
+    res = _dedupe_taches(found)
+    _taches_histo_cache[key] = (time.time() + ttl, res)
+    return res
+
+
+def _get_taches(session, base, email, id_contrat, model, mois, annee):
+    found = []
+    _collect_model_taches(model, found)
+    try:
+        found += _taches_from_page(session, base, id_contrat, mois, annee)
+        found += _taches_historique(session, base, email, id_contrat, mois, annee)
+    except Exception as e:
+        print(f"  [taches] Recherche complémentaire échouée (non bloquant) : {e}")
+    taches = _dedupe_taches(found)
+    if not taches:
+        print("  [taches] Aucune tâche trouvée (ni catalogue, ni tâche déjà saisie)")
     return taches
 
 
