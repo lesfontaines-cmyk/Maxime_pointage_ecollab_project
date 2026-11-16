@@ -903,16 +903,6 @@ def vapid_public_key():
     return jsonify({"publicKey": VAPID_KEYS.get('publicKey', '')})
 
 
-@app.route("/push-status", methods=["POST"])
-def push_status():
-    data = request.get_json(force=True)
-    email = (data.get("email") or "").strip()
-    if not email:
-        return jsonify({"hasSubscription": False})
-    subs = _load_push_subs()
-    return jsonify({"hasSubscription": email in subs})
-
-
 @app.route("/subscribe", methods=["POST"])
 def subscribe():
     data = request.get_json(force=True)
@@ -925,21 +915,6 @@ def subscribe():
     _save_push_subs(subs)
     print(f"[PUSH] Subscription enregistrée pour {email}")
     return jsonify({"success": True})
-
-
-@app.route("/test-push", methods=["POST"])
-def test_push():
-    data = request.get_json(force=True)
-    email = (data.get("email") or "").strip()
-    delay = int(data.get("delay", 300))
-    if not email:
-        return jsonify({"success": False, "error": "Email requis"}), 400
-    _send_push(email, "Test push", "Notification de test immédiate")
-    def delayed():
-        time.sleep(delay)
-        _send_push(email, "Test push différé", f"Notification reçue après {delay}s")
-    threading.Thread(target=delayed, daemon=True).start()
-    return jsonify({"success": True, "message": f"Push immédiat envoyé + notification dans {delay}s"})
 
 
 @app.route("/test-login", methods=["POST"])
