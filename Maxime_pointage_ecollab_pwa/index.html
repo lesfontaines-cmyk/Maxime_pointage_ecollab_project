@@ -3852,12 +3852,15 @@ function _backgroundRecapRefresh(force) {
     var heure = new Date().getHours();
     // Hors 7h-19h, on synchronise quand meme tant que la liste des taches est vide
     // (ex. premiere connexion le soir) : sinon le select Tache reste sans choix.
-    if ((heure < 7 || heure >= 19) && TACHES.length) return;
+    // Idem tant que l'URL est l'ancienne URL par defaut (contrat d'un autre salarie) :
+    // la reponse du serveur donne le bon contrat (cf. _majUrlContrat).
+    var urlACorriger = CFG.url === OLD_DEFAULT_ECOL_URL;
+    if ((heure < 7 || heure >= 19) && TACHES.length && !urlACorriger) return;
     if (_syncActive) return;
     if ((Date.now() - _lastSyncTime) < SYNC_COOLDOWN) return;
     try {
       var lastSync = localStorage.getItem(syncKey);
-      if (lastSync && (Date.now() - new Date(lastSync).getTime()) < SYNC_ECOLLAB_TTL) return;
+      if (!urlACorriger && lastSync && (Date.now() - new Date(lastSync).getTime()) < SYNC_ECOLLAB_TTL) return;
     } catch(e) {}
   }
   _lastSyncTime = Date.now();
