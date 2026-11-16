@@ -196,8 +196,6 @@ def _ensure_http_session(email, password, url):
             print(f"  [session] Page SaisieRapide: {pr.status_code} ({len(pr.text)} octets)")
             # Conservée pour y trouver l'URL du catalogue des tâches (cf. _charger_catalogue)
             s._saisie_html = pr.text if pr.ok else ''
-            s._saisie_info = {'statut': pr.status_code, 'urlFinale': pr.url.split('?')[0],
-                              'taille': len(pr.text)}
             # Extraire le token anti-CSRF si présent
             token_match = _re.search(r'__RequestVerificationToken["\s]*value="([^"]+)"', pr.text)
             if token_match:
@@ -663,19 +661,6 @@ def _dedupe_taches(taches):
     return sorted(out, key=lambda t: t['label'].lower())
 
 
-def _extraits(text, motif=r'(?i)tache', n=10, largeur=100):
-    """Passages autour d'un motif (diagnostic)."""
-    out, fin = [], -1
-    for m in _re.finditer(motif, text or ''):
-        if m.start() < fin:
-            continue
-        debut, fin = max(0, m.start() - largeur), m.end() + largeur
-        out.append(' '.join(text[debut:fin].split()))
-        if len(out) >= n:
-            break
-    return out
-
-
 def _urls_catalogue(html):
     text = _html.unescape(html or '')
     urls = []
@@ -687,13 +672,13 @@ def _urls_catalogue(html):
     return urls
 
 
-def _charger_catalogue(session, base, url, mois, annee, diag=None):
+def _charger_catalogue(session, base, url, mois, annee):
     """Objets tâche bruts du catalogue eCollab, mémorisés sur la session par mois."""
     cache = getattr(session, '_catalogue_taches', None)
     if cache is None:
         cache = session._catalogue_taches = {}
     key = (int(mois), int(annee))
-    if key in cache and diag is None:
+    if key in cache:
         return cache[key]
     pages = []
     if url and '/SaisieRapide' not in url:
@@ -701,56 +686,36 @@ def _charger_catalogue(session, base, url, mois, annee, diag=None):
         page_url = _re.sub(r'annee=\d+', f'annee={int(annee)}', page_url)
         try:
             r = session.get(page_url, timeout=15, headers={'Accept': 'text/html,application/xhtml+xml'})
-            pages.append(('pageConfiguree', r.text if r.ok else ''))
-            if diag is not None:
-                diag['pageConfiguree'] = {'statut': r.status_code, 'urlFinale': r.url.split('?')[0],
-                                          'taille': len(r.text)}
+            if r.ok:
+                pages.append(r.text)
         except Exception as e:
             print(f"  [taches] Page configurée : {e}")
-            if diag is not None:
-                diag['pageConfiguree'] = {'erreur': str(e)}
-    pages.append(('SaisieRapide', getattr(session, '_saisie_html', '') or ''))
-    if diag is not None:
-        diag['SaisieRapide'] = getattr(session, '_saisie_info', None)
+    pages.append(getattr(session, '_saisie_html', '') or '')
     candidats = []
-    for nom, html in pages:
+    for html in pages:
         for u in _urls_catalogue(html):
             if u not in candidats:
                 candidats.append(u)
-        if diag is not None:
-            diag.setdefault('extraitsGetAllTaches', {})[nom] = _extraits(
-                html, r'GetAllTaches|GetAllAsDictionn', 4)
     objets = []
     for u in candidats[:4]:
         full = u if u.startswith('http') else base + (u if u.startswith('/') else '/' + u)
         try:
             r = session.get(full, timeout=15, params={'mois': int(mois), 'annee': int(annee)})
-            ct = r.headers.get('content-type', '')
-            if diag is not None:
-                diag.setdefault('appels', {})[u] = {'statut': r.status_code, 'type': ct,
-                                                    'debut': r.text[:300]}
-            if r.ok and 'json' in ct:
+            if r.ok and 'json' in r.headers.get('content-type', ''):
                 objets = _catalogue_objets(r.json())
                 if objets:
                     break
         except Exception as e:
             print(f"  [taches] {u} : {e}")
-            if diag is not None:
-                diag.setdefault('appels', {})[u] = {'erreur': str(e)}
     print(f"  [taches] Catalogue eCollab {int(mois):02d}/{annee} : {len(objets)} tâche(s), URL {candidats[:2]}")
-    if diag is not None:
-        diag['urlsCatalogue'] = candidats
-        diag['nbObjets'] = len(objets)
-        if objets:
-            diag['exempleObjet'] = {k: _court(v) for k, v in objets[0].items()}
     if objets:  # un échec n'est pas mémorisé : nouvel essai au prochain appel
         cache[key] = objets
     return objets
 
 
-def _get_taches(session, base, url, model, mois, annee, diag=None):
+def _get_taches(session, base, url, model, mois, annee):
     try:
-        objets = _charger_catalogue(session, base, url, mois, annee, diag)
+        objets = _charger_catalogue(session, base, url, mois, annee)
     except Exception as e:
         print(f"  [taches] Chargement du catalogue échoué (non bloquant) : {e}")
         return []
@@ -1023,63 +988,6 @@ def fetch_week():
         return jsonify(resp)
     else:
         return jsonify({"success": False, "error": result}), 500
-
-
-# ─── DIAGNOSTIC TÂCHES ──────────────────────────────────────────────────────
-def _court(v):
-    if isinstance(v, list):
-        return f"[liste de {len(v)}]"
-    if isinstance(v, dict):
-        return "{" + ", ".join(list(v.keys())[:12]) + "}"
-    return v if isinstance(v, (int, float, bool)) or v is None else str(v)[:80]
-
-
-def _diag_model(model):
-    full = model.get('_full_response')
-    jours = [j for j in (model.get('Jours') or []) if isinstance(j, dict)]
-    hs = [h for j in jours for h in (j.get('Horaires') or []) if isinstance(h, dict)]
-    avec = [h for h in hs if h.get('IdTache')]
-    ex = (avec or hs or [None])[0]
-    return {
-        'source': 'GetVDPGroupeeEntreprise' if model.get('_groupee') else 'GetVDPSalarie',
-        'salarie': model.get('NomSalarie') or model.get('NomPrenom') or model.get('Nom'),
-        'idContratReponse': model.get('IdContrat'),
-        'idEntreprise': model.get('IdEntreprise') or model.get('_idEntreprise'),
-        'nbSalaries': len(full[0].get('Salaries') or []) if isinstance(full, list) and full
-                      and isinstance(full[0], dict) else None,
-        'nbJours': len(jours), 'nbHoraires': len(hs), 'nbHorairesAvecTache': len(avec),
-        'exempleHoraire': {k: _court(v) for k, v in ex.items()} if ex else None,
-        'idsTachesUtilisees': _ids_taches_utilisees(model),
-    }
-
-
-@app.route("/debug-taches", methods=["POST"])
-def debug_taches():
-    """Ce que le serveur voit des tâches pour ce compte (affiché dans Paramètres)."""
-    data = request.get_json(force=True)
-    email    = (data.get("email")    or "").strip()
-    password = (data.get("password") or "").strip()
-    url      = (data.get("url")      or "").strip()
-    if not email or not password or not url:
-        return jsonify({"erreur": "Email, mot de passe et URL requis"}), 400
-    id_contrat = _extract_id_contrat(url)
-    today = datetime.date.today()
-    diag = {'idContratUrl': id_contrat, 'pageUrl': url.split('?')[0]}
-    try:
-        session, base = _ensure_http_session(email, password, url)
-        try:
-            model = _get_vdp(session, base, id_contrat, today.month, today.year)
-        except Exception:
-            _reset_http_session()
-            session, base = _ensure_http_session(email, password, url)
-            model = _get_vdp(session, base, id_contrat, today.month, today.year)
-        diag['modele'] = _diag_model(model)
-        diag['catalogue'] = {}
-        diag['tachesTrouvees'] = _get_taches(session, base, url, model, today.month, today.year,
-                                             diag=diag['catalogue'])
-    except Exception as e:
-        diag['erreur'] = f"{type(e).__name__}: {str(e)[:300]}"
-    return jsonify(diag)
 
 
 @app.route("/cloture", methods=["POST"])

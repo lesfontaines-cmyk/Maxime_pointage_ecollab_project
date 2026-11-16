@@ -1819,10 +1819,6 @@
   <button id="btnTestPush" onclick="_testPushNotification()" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--gold);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);cursor:pointer;">Tester les notifications (30s)</button>
   <pre id="pushDiagLog" style="margin-top:8px;padding:10px;background:#1a1a10;color:#c0b890;font-size:11px;border-radius:3px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;display:block;min-height:20px;"></pre>
 
-  <button id="btnDiagTaches" onclick="_diagTaches()" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--gold);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);cursor:pointer;">Diagnostic taches</button>
-  <pre id="tacheDiagLog" style="margin-top:8px;padding:10px;background:#1a1a10;color:#c0b890;font-size:11px;border-radius:3px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;display:none;"></pre>
-  <button id="btnCopyDiagTaches" onclick="_copyDiagTaches()" style="display:none;width:100%;padding:12px;margin-top:6px;background:var(--gold);border:none;border-radius:3px;font-family:var(--sans);font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#fff;cursor:pointer;">Copier le diagnostic</button>
-
   <button onclick="showPage('pointage')" style="width:100%;padding:14px;margin-top:10px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--light);cursor:pointer;">&#x2190; Retour</button>
   <div style="text-align:center;margin-top:24px;color:var(--light);font-size:12px;letter-spacing:1px;opacity:0.5;">
     <span id="appVersionLabel">v--</span> &mdash; <a href="#" id="forceUpdateLink" onclick="forceAppUpdate();return false;" style="color:var(--gold);text-decoration:underline;cursor:pointer;">Forcer la mise a jour</a>
@@ -4056,74 +4052,6 @@ function _backgroundRecapRefresh(force) {
     hideSyncIndicator(false);
     toast('Sync eCollab echouee : ' + (e.message||e),'error');
   });
-}
-
-// ======================================
-// DIAGNOSTIC TACHES (Parametres)
-// ======================================
-function _diagTaches() {
-  var server = CFG.server || localStorage.getItem('eco_server') || '';
-  var log = document.getElementById('tacheDiagLog');
-  var btn = document.getElementById('btnDiagTaches');
-  var copyBtn = document.getElementById('btnCopyDiagTaches');
-  if (!server || !CFG.email || !CFG.password || !CFG.url) { toast('Connexion requise','warning'); return; }
-  var mk = (S.date || todayISO()).slice(0,7);
-  var info = {
-    appli: (document.getElementById('appVersionLabel') || {}).textContent || '',
-    navigateur: navigator.userAgent,
-    urlEcollab: CFG.url,
-    tachesEnMemoire: TACHES.length,
-    derniereSync: localStorage.getItem('eco_recap_sync_' + (CFG.email||'') + '_' + mk) || 'jamais'
-  };
-  btn.disabled = true; btn.textContent = 'Diagnostic en cours...';
-  log.style.display = 'block'; log.textContent = 'Interrogation du serveur (jusqu\'a 1 min)...';
-  copyBtn.style.display = 'none';
-  fetch(server + '/debug-taches', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ email: CFG.email, password: CFG.password, url: CFG.url })
-  })
-  .then(function(r) {
-    return r.text().then(function(t) {
-      try { return JSON.parse(t); } catch(e) { return { erreurHTTP: r.status, corps: t.slice(0, 300) }; }
-    });
-  })
-  .then(function(d) {
-    info.serveur = d;
-    if (d && d.tachesTrouvees && d.tachesTrouvees.length) {
-      TACHES = d.tachesTrouvees;
-      try { localStorage.setItem('eco_taches', JSON.stringify(TACHES)); } catch(e) {}
-      try { renderPointage(); renderPlages(); } catch(e) {}
-      toast(TACHES.length + ' tache(s) chargee(s)', 'success');
-    }
-  })
-  .catch(function(e) { info.erreurReseau = e.message || String(e); })
-  .then(function() {
-    log.textContent = JSON.stringify(info, null, 1);
-    copyBtn.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Diagnostic taches';
-  });
-}
-
-function _copyDiagTaches() {
-  var txt = document.getElementById('tacheDiagLog').textContent;
-  function ok() { toast('Diagnostic copie : collez-le dans un message', 'success'); }
-  function fallback() {
-    var ta = document.createElement('textarea');
-    ta.value = txt; ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select(); ta.setSelectionRange(0, txt.length);
-    var done = false;
-    try { done = document.execCommand('copy'); } catch(e) {}
-    document.body.removeChild(ta);
-    if (done) ok(); else toast('Copie impossible : faites une capture d\'ecran', 'warning');
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(txt).then(ok, fallback);
-  } else {
-    fallback();
-  }
 }
 
 // ======================================
