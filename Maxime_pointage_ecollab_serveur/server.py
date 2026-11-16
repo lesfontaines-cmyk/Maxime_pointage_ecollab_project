@@ -260,6 +260,45 @@ def _get_vdp(session, base, id_contrat, mois, annee, timeout=30):
     raise RuntimeError(f"Aucune donnée trouvée pour idContrat={id_contrat}")
 
 
+_contrats_detectes = {}  # (email, base) -> idContrat retrouvé quand l'URL n'en donne pas
+
+
+def _id_contrat(session, base, email, url):
+    """idContrat de l'URL, sinon celui du compte connecté : lien « IndexSalarie » unique
+    dans la page SaisieRapide, ou unique salarié de la réponse groupée (compte salarié)."""
+    id_c = _extract_id_contrat(url)
+    if id_c:
+        return id_c
+    key = (email, base)
+    if key in _contrats_detectes:
+        return _contrats_detectes[key]
+    trouve = None
+    html = _html.unescape(getattr(session, '_saisie_html', '') or '')
+    ids = set(_re.findall(r'IndexSalarie\?[^"\'\s<>]*?idContrat=(\d+)', html))
+    if len(ids) == 1:
+        trouve = int(ids.pop())
+    today = datetime.date.today()
+    for essai in ({}, {'idContrat': 0}):
+        if trouve:
+            break
+        try:
+            r = session.get(f"{base}/Paie/VariablePaieAPI/GetVDPGroupeeEntreprise", timeout=30,
+                            params=dict(essai, mois=f'{today.month:02d}', annee=today.year))
+            data = r.json() if r.ok else None
+        except Exception:
+            data = None
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            salaries = data[0].get('Salaries') or []
+            if len(salaries) == 1 and salaries[0].get('IdContrat'):
+                trouve = int(salaries[0]['IdContrat'])
+    if not trouve:
+        raise RuntimeError("Contrat eCollaboratrice introuvable : dans Paramètres, collez l'adresse "
+                           "de votre page « Saisie des temps » eCollaboratrice")
+    print(f"  [contrat] idContrat détecté pour {email} : {trouve}")
+    _contrats_detectes[key] = trouve
+    return trouve
+
+
 # ─── LECTURE ECOLLAB (API directe) ──────────────────────────────────────────
 def _model_to_days(model, mois, annee):
     days = {}
@@ -328,13 +367,11 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
     else:
         dt = datetime.date.today()
     mois, annee = dt.month, dt.year
-    id_contrat = _extract_id_contrat(url)
-    if not id_contrat:
-        return False, "idContrat introuvable dans l'URL", [], None, []
 
     try:
         session, base = _ensure_http_session(email, password, url)
         try:
+            id_contrat = _id_contrat(session, base, email, url)
             model = _get_vdp(session, base, id_contrat, mois, annee)
         except Exception as e:
             if _retry:
@@ -344,14 +381,14 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
 
         days = _model_to_days(model, mois, annee)
         recap = _extract_recap(model, mois, annee, dt)
-        taches = _get_taches(session, base, url, model, mois, annee)
+        taches = _get_taches(session, base, url, id_contrat, model, mois, annee)
 
-        return True, days, [], recap, taches
+        return True, days, [], recap, taches, model.get('IdContrat') or id_contrat
 
     except RuntimeError as e:
-        return False, str(e), [], None, []
+        return False, str(e), [], None, [], None
     except Exception as e:
-        return False, f"Erreur lecture directe : {e}", [], None, []
+        return False, f"Erreur lecture directe : {e}", [], None, [], None
 
 
 def _day_hours(j):
@@ -713,7 +750,9 @@ def _charger_catalogue(session, base, url, mois, annee):
     return objets
 
 
-def _get_taches(session, base, url, model, mois, annee):
+def _get_taches(session, base, url, id_contrat, model, mois, annee):
+    if url and id_contrat and 'idContrat=' not in url:
+        url += ('&' if '?' in url else '?') + f'idContrat={id_contrat}'
     try:
         objets = _charger_catalogue(session, base, url, mois, annee)
     except Exception as e:
@@ -741,13 +780,11 @@ def cloture_direct(email, password, url, plages, date_str="", variables=None, _r
 
     mois, annee = dt.month, dt.year
     target_jour = dt.day
-    id_contrat = _extract_id_contrat(url)
-    if not id_contrat:
-        return False, "idContrat introuvable dans l'URL"
 
     try:
         session, base = _ensure_http_session(email, password, url)
         try:
+            id_contrat = _id_contrat(session, base, email, url)
             model = _get_vdp(session, base, id_contrat, mois, annee)
         except Exception:
             if _retry:
@@ -953,13 +990,15 @@ def fetch_week():
     if not url:
         return jsonify({"success": False, "error": "URL Ecollaboratrice requise"}), 400
 
-    success, result, debug_keys, recap, taches = fetch_ecollab_days(email, password, url, date_str)
+    success, result, debug_keys, recap, taches, id_contrat = fetch_ecollab_days(email, password, url, date_str)
     if success:
         resp = {"success": True, "days": result}
         if recap:
             resp["recap"] = recap
         if taches:
             resp["taches"] = taches
+        if id_contrat:
+            resp["idContrat"] = id_contrat  # contrat du compte connecté (la PWA corrige son URL)
         return jsonify(resp)
     else:
         return jsonify({"success": False, "error": result}), 500

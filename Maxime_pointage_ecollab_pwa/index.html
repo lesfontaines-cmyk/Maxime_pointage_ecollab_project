@@ -1797,7 +1797,7 @@
   </div>
   <div class="field">
     <label>URL Ecollaboratrice</label>
-    <input type="url" id="sUrl" placeholder="https://drive.ecollaboratrice.com/..." value="https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026" />
+    <input type="url" id="sUrl" placeholder="https://drive.ecollaboratrice.com/..." />
     <div class="hint">URL de votre page Saisie des temps.</div>
   </div>
   <div class="field">
@@ -1829,6 +1829,11 @@
 let S   = { plages:[], cloture:false, date:'', enPoste:false, history:[], variables:{astreinte:0,indemniteEloignement:0} };
 let _priseTsMs = null;
 let CFG = { email:'', password:'', url:'', server:'' };
+// URL eCollab par defaut : sans numero de contrat. Le serveur retrouve celui du compte
+// connecte et le renvoie (idContrat) ; _majUrlContrat le reporte dans l'URL.
+var DEFAULT_ECOL_URL = 'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie';
+// Ancienne valeur par defaut, qui contenait le contrat d'un salarie precis
+var OLD_DEFAULT_ECOL_URL = DEFAULT_ECOL_URL + '?idContrat=186674&mois=03&annee=2026';
 let DEFAULTS = [{debut:'08:00',fin:'12:00'},{debut:'14:00',fin:'17:00'}];
 let TACHES = []; // [{id, label}] — liste des taches depuis eCollab
 
@@ -1990,13 +1995,28 @@ function loadSettings() {
       CFG.email=user;
       CFG.password=localStorage.getItem('eco_pwd_'+user)||'';
     }
-    CFG.url=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
+    CFG.url=localStorage.getItem('eco_url')||DEFAULT_ECOL_URL;
     CFG.server=localStorage.getItem('eco_server')||'https://serveur-pointage.charlesmurgat.com';
     loadDefaults();
   }catch(e){}
 }
+// Reporte dans l'URL le contrat renvoye par le serveur, si l'URL est celle par defaut
+// (nouvelle, ancienne, ou deja completee par l'appli). Une URL saisie a la main n'est
+// jamais modifiee.
+function _majUrlContrat(idContrat) {
+  if (!idContrat) return;
+  var url = CFG.url || DEFAULT_ECOL_URL;
+  var parDefaut = url === OLD_DEFAULT_ECOL_URL ||
+    url === DEFAULT_ECOL_URL || /^\?idContrat=\d+$/.test(url.slice(DEFAULT_ECOL_URL.length)) && url.indexOf(DEFAULT_ECOL_URL) === 0;
+  var nouvelle = DEFAULT_ECOL_URL + '?idContrat=' + idContrat;
+  if (!parDefaut || url === nouvelle) return;
+  CFG.url = nouvelle;
+  try { localStorage.setItem('eco_url', nouvelle); } catch(e) {}
+  var champ = document.getElementById('sUrl');
+  if (champ) champ.value = nouvelle;
+}
 function saveSettings() {
-  CFG.url=document.getElementById('sUrl').value.trim();
+  CFG.url=document.getElementById('sUrl').value.trim()||DEFAULT_ECOL_URL;
   CFG.server=document.getElementById('sServer').value.trim().replace(/\/$/,'');
   try{
     localStorage.setItem('eco_url',CFG.url);
@@ -2910,7 +2930,7 @@ function _fetchMonthKey(mk, force) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.success && data.days) {
+    if (data.success && data.days) { _majUrlContrat(data.idContrat);
       try {
         localStorage.setItem(cacheKey, JSON.stringify(data.days));
         localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + mk, new Date().toISOString());
@@ -2973,7 +2993,7 @@ function renderRecap(forceRefresh) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.success && data.days) {
+    if (data.success && data.days) { _majUrlContrat(data.idContrat);
       if (data._debug_keys) console.log('[eCollab] Clés jour:', data._debug_keys);
       // Stocker les taches disponibles
       if (data.taches && data.taches.length) {
@@ -3388,7 +3408,7 @@ function _fetchExerciseMonths(year, month) {
     .then(function(data) {
       var prefix = 'eco_recap_' + (CFG.email||'') + '_' + mk;
       var recapPrefix = 'eco_recap_data_' + (CFG.email||'') + '_' + mk;
-      if (data.success && data.days) {
+      if (data.success && data.days) { _majUrlContrat(data.idContrat);
         try {
           localStorage.setItem(prefix, JSON.stringify(data.days));
           localStorage.setItem('eco_recap_sync_' + (CFG.email||'') + '_' + mk, new Date().toISOString());
@@ -3666,7 +3686,7 @@ function login() {
 
   // Test login via server
   var serverUrl=CFG.server||localStorage.getItem('eco_server')||'https://serveur-pointage.charlesmurgat.com';
-  var ecolUrl=localStorage.getItem('eco_url')||'https://drive.ecollaboratrice.com/Paie/VariablePaie/IndexSalarie?idContrat=186674&mois=03&annee=2026';
+  var ecolUrl=localStorage.getItem('eco_url')||DEFAULT_ECOL_URL;
 
   fetch(serverUrl+'/test-login',{
     method:'POST',
@@ -3858,7 +3878,7 @@ function _backgroundRecapRefresh(force) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     hideSyncIndicator(true);
-    if (data.success && data.days) {
+    if (data.success && data.days) { _majUrlContrat(data.idContrat);
       try {
         if (data.taches && data.taches.length) {
           TACHES = data.taches;
