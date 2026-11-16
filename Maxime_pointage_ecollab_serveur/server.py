@@ -13,6 +13,7 @@ import datetime
 import threading
 import os
 import re as _re
+import html as _html
 import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -195,6 +196,8 @@ def _ensure_http_session(email, password, url):
             print(f"  [session] Page SaisieRapide: {pr.status_code} ({len(pr.text)} octets)")
             # Conservée pour y chercher le catalogue des tâches (cf. _taches_from_page)
             s._saisie_html = pr.text if pr.ok else ''
+            s._saisie_info = {'statut': pr.status_code, 'urlFinale': pr.url.split('?')[0],
+                              'taille': len(pr.text)}
             # Extraire le token anti-CSRF si présent
             token_match = _re.search(r'__RequestVerificationToken["\s]*value="([^"]+)"', pr.text)
             if token_match:
@@ -343,7 +346,7 @@ def fetch_ecollab_days(email, password, url, date_str="", _retry=True):
 
         days = _model_to_days(model, mois, annee)
         recap = _extract_recap(model, mois, annee, dt)
-        taches = _get_taches(session, base, email, id_contrat, model, mois, annee)
+        taches = _get_taches(session, base, email, url, id_contrat, model, mois, annee)
 
         return True, days, [], recap, taches
 
@@ -576,9 +579,14 @@ _TACHE_LABEL_KEYS = ('LibelleTache', 'Libelle', 'libelle', 'Label', 'label', 'No
 _TACHES_HISTO_MOIS = 3
 _TACHES_HISTO_TTL = 6 * 3600
 _taches_histo_cache = {}  # (email, base, id_contrat) -> (expiration, [taches])
-_TACHE_ARRAY_RE = _re.compile(r'''["']?\w*[Tt]ache\w*["']?\s*[:=]\s*\[''')
+# « taches: [ », « "Taches":[ », « :taches="[ » (prop Vue, après html.unescape)
+_TACHE_ARRAY_RE = _re.compile(r'''["']?\w*[Tt]ache\w*["']?\s*[:=]\s*["']?\s*\[''')
 _TACHE_URL_RE = _re.compile(r'''["'](?:https?://[^/"']+)?(/[\w/]*[Tt]ache\w*)''')
 _TACHE_URL_LECTURE = ('get', 'list', 'load', 'charg', 'recup')
+_SCRIPT_SRC_RE = _re.compile(r'''<script[^>]+src=["']([^"']+)["']''', _re.I)
+# Scripts communs à toutes les pages (bibliothèques, connexion) : inutile de les lire
+_SCRIPTS_COMMUNS = ('/assets/', 'commonmethods', '/core.js', 'globalform', 'notification.js',
+                    'pluginsconfig', 'login.js')
 
 
 def _tache_from_obj(o, id_keys=_TACHE_ID_KEYS, label_keys=_TACHE_LABEL_KEYS):
@@ -670,35 +678,95 @@ def _json_array_at(text, start):
     return None
 
 
-def _taches_from_page(session, base, id_contrat, mois, annee):
-    """Catalogue des tâches tiré de la page SaisieRapide, mémorisé sur la session."""
-    cached = getattr(session, '_taches_page', None)
-    if cached is not None:
-        return cached
-    html = getattr(session, '_saisie_html', '') or ''
-    found = []
-    for m in _TACHE_ARRAY_RE.finditer(html):
-        arr = _json_array_at(html, m.end() - 1)
+def _extraits(text, n=10, largeur=100):
+    """Passages autour de « tache » (diagnostic)."""
+    out, fin = [], -1
+    for m in _re.finditer(r'(?i)tache', text or ''):
+        if m.start() < fin:
+            continue
+        debut, fin = max(0, m.start() - largeur), m.end() + largeur
+        out.append(' '.join(text[debut:fin].split()))
+        if len(out) >= n:
+            break
+    return out
+
+
+def _scan_source(text, found, urls, scripts=None):
+    """Cherche dans une page/un script : tableaux de tâches intégrés, endpoints de
+    lecture « …Tache… » et (si `scripts`) les scripts propres à la page."""
+    text = _html.unescape(text or '')
+    for m in _TACHE_ARRAY_RE.finditer(text):
+        arr = _json_array_at(text, m.end() - 1)
         if arr:
             _collect_taches({'taches': arr}, found)
+    for u in _TACHE_URL_RE.findall(text):
+        action = u.rstrip('/').rsplit('/', 1)[-1].lower()
+        if u not in urls and action.startswith(_TACHE_URL_LECTURE):
+            urls.append(u)
+    if scripts is not None:
+        for src in _SCRIPT_SRC_RE.findall(text):
+            p = src.split('?')[0].lower()
+            if (p.startswith('/') and not p.startswith('//') and src not in scripts
+                    and not any(x in p for x in _SCRIPTS_COMMUNS)):
+                scripts.append(src)
+
+
+def _taches_from_page(session, base, url, id_contrat, mois, annee, diag=None):
+    """Catalogue des tâches tiré des pages eCollab (SaisieRapide et page configurée,
+    ex. IndexSalarie pour un salarié) et de leurs scripts. Mémorisé sur la session.
+    Avec `diag` (dict), y consigne ce qui a été vu."""
+    cached = getattr(session, '_taches_page', None)
+    if cached is not None and diag is None:
+        return cached
+    found, urls, scripts = [], [], []
+    sources = [('SaisieRapide', getattr(session, '_saisie_html', '') or '')]
+    if diag is not None:
+        diag['SaisieRapide'] = getattr(session, '_saisie_info', None)
+    if url and '/SaisieRapide' not in url:
+        try:
+            r = session.get(url, timeout=15, headers={'Accept': 'text/html,application/xhtml+xml'})
+            sources.append(('pageConfiguree', r.text if r.ok else ''))
+            if diag is not None:
+                diag['pageConfiguree'] = {'statut': r.status_code, 'urlFinale': r.url.split('?')[0],
+                                          'taille': len(r.text)}
+        except Exception as e:
+            print(f"  [taches] Page configurée : {e}")
+            if diag is not None:
+                diag['pageConfiguree'] = {'erreur': str(e)}
+    for nom, text in sources:
+        _scan_source(text, found, urls, scripts)
+        if diag is not None:
+            diag.setdefault('extraits', {})[nom] = _extraits(text)
     if not found:
-        urls = []
-        for u in _TACHE_URL_RE.findall(html):
-            action = u.rstrip('/').rsplit('/', 1)[-1].lower()
-            if u not in urls and action.startswith(_TACHE_URL_LECTURE):
-                urls.append(u)
-        if urls:
-            print(f"  [taches] Endpoints repérés dans la page : {urls[:5]}")
-        for u in urls[:3]:
+        for src in scripts[:6]:
+            try:
+                r = session.get(base + src, timeout=10)
+                if r.ok:
+                    _scan_source(r.text, found, urls)
+                    if diag is not None:
+                        diag.setdefault('extraitsScripts', {})[src.split('?')[0]] = _extraits(r.text, n=8)
+            except Exception as e:
+                print(f"  [taches] Script {src} : {e}")
+    if urls:
+        print(f"  [taches] Endpoints repérés : {urls[:5]}")
+    if not found:
+        for u in urls[:4]:
             try:
                 r = session.get(base + u, timeout=10, params={
                     'idContrat': id_contrat, 'mois': f'{int(mois):02d}', 'annee': int(annee)})
-                if r.ok and 'json' in r.headers.get('content-type', ''):
+                ct = r.headers.get('content-type', '')
+                if diag is not None:
+                    diag.setdefault('endpoints', {})[u] = {'statut': r.status_code, 'type': ct,
+                                                           'debut': r.text[:300]}
+                if r.ok and 'json' in ct:
                     _collect_taches({'taches': r.json()}, found)
             except Exception as e:
                 print(f"  [taches] {u} : {e}")
+    if diag is not None:
+        diag['scripts'] = [s.split('?')[0] for s in scripts]
+        diag['endpointsReperes'] = urls
     session._taches_page = _dedupe_taches(found)
-    print(f"  [taches] Catalogue page SaisieRapide : {len(session._taches_page)} tâche(s)")
+    print(f"  [taches] Catalogue pages eCollab : {len(session._taches_page)} tâche(s)")
     return session._taches_page
 
 
@@ -728,11 +796,11 @@ def _taches_historique(session, base, email, id_contrat, mois, annee):
     return res
 
 
-def _get_taches(session, base, email, id_contrat, model, mois, annee):
+def _get_taches(session, base, email, url, id_contrat, model, mois, annee):
     found = []
     _collect_model_taches(model, found)
     try:
-        found += _taches_from_page(session, base, id_contrat, mois, annee)
+        found += _taches_from_page(session, base, url, id_contrat, mois, annee)
         found += _taches_historique(session, base, email, id_contrat, mois, annee)
     except Exception as e:
         print(f"  [taches] Recherche complémentaire échouée (non bloquant) : {e}")
@@ -1001,6 +1069,92 @@ def fetch_week():
         return jsonify(resp)
     else:
         return jsonify({"success": False, "error": result}), 500
+
+
+# ─── DIAGNOSTIC TÂCHES ──────────────────────────────────────────────────────
+def _court(v):
+    if isinstance(v, list):
+        return f"[liste de {len(v)}]"
+    if isinstance(v, dict):
+        return "{" + ", ".join(list(v.keys())[:12]) + "}"
+    return v if isinstance(v, (int, float, bool)) or v is None else str(v)[:80]
+
+
+def _chemins_tache(obj, chemin='', out=None, depth=0):
+    """Chemins des clés contenant « tache » (listes ramenées à [])."""
+    out = {} if out is None else out
+    if depth > 10 or len(out) >= 30:
+        return out
+    if isinstance(obj, list):
+        for it in obj[:50]:
+            _chemins_tache(it, chemin + '[]', out, depth + 1)
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            c = f"{chemin}.{k}" if chemin else str(k)
+            if 'tache' in str(k).lower() and c not in out:
+                out[c] = _court(v)
+            _chemins_tache(v, c, out, depth + 1)
+    return out
+
+
+def _diag_model(model):
+    d = {'source': 'GetVDPGroupeeEntreprise' if model.get('_groupee') else 'GetVDPSalarie',
+         'salarie': model.get('NomSalarie') or model.get('NomPrenom') or model.get('Nom'),
+         'idContratReponse': model.get('IdContrat'),
+         'cles': sorted(str(k) for k in model if not str(k).startswith('_'))}
+    full = model.get('_full_response')
+    if isinstance(full, list) and full and isinstance(full[0], dict):
+        d['clesMoisGroupee'] = sorted(full[0].keys())
+        d['nbSalaries'] = len(full[0].get('Salaries') or [])
+    jours = [j for j in (model.get('Jours') or []) if isinstance(j, dict)]
+    hs = [h for j in jours for h in (j.get('Horaires') or []) if isinstance(h, dict)]
+    avec = [h for h in hs if h.get('IdTache')]
+    d.update(nbJours=len(jours), nbHoraires=len(hs), nbHorairesAvecTache=len(avec))
+    if jours:
+        d['clesJour'] = sorted(jours[0].keys())
+    ex = (avec or hs or [None])[0]
+    d['exempleHoraire'] = {k: _court(v) for k, v in ex.items()} if ex else None
+    d['clesContenantTache'] = _chemins_tache({k: v for k, v in model.items() if k != '_full_response'})
+    if full:
+        d['clesContenantTacheGroupee'] = _chemins_tache(full)
+    return d
+
+
+@app.route("/debug-taches", methods=["POST"])
+def debug_taches():
+    """Ce que le serveur voit des tâches pour ce compte (affiché dans Paramètres)."""
+    data = request.get_json(force=True)
+    email    = (data.get("email")    or "").strip()
+    password = (data.get("password") or "").strip()
+    url      = (data.get("url")      or "").strip()
+    if not email or not password or not url:
+        return jsonify({"erreur": "Email, mot de passe et URL requis"}), 400
+    id_contrat = _extract_id_contrat(url)
+    today = datetime.date.today()
+    diag = {'idContratUrl': id_contrat, 'pageUrl': url.split('?')[0]}
+    try:
+        session, base = _ensure_http_session(email, password, url)
+        try:
+            model = _get_vdp(session, base, id_contrat, today.month, today.year)
+        except Exception:
+            _reset_http_session()
+            session, base = _ensure_http_session(email, password, url)
+            model = _get_vdp(session, base, id_contrat, today.month, today.year)
+        diag['modele'] = _diag_model(model)
+        cur = []
+        _collect_model_taches(model, cur)
+        diag['tachesMoisCourant'] = _dedupe_taches(cur)
+        diag['pages'] = {}
+        diag['tachesPages'] = _taches_from_page(session, base, url, id_contrat,
+                                                today.month, today.year, diag=diag['pages'])
+        _taches_histo_cache.pop((email, base, id_contrat), None)
+        diag['tachesHistorique'] = _taches_historique(session, base, email, id_contrat,
+                                                      today.month, today.year)
+        diag['tachesTrouvees'] = _dedupe_taches(diag['tachesMoisCourant'] + diag['tachesPages']
+                                                + diag['tachesHistorique'])
+    except Exception as e:
+        diag['erreur'] = f"{type(e).__name__}: {str(e)[:300]}"
+    return jsonify(diag)
 
 
 @app.route("/cloture", methods=["POST"])
